@@ -6,13 +6,14 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
+import Textarea from 'primevue/textarea'
 import Message from 'primevue/message'
 import DatePicker from 'primevue/datepicker'
 import Chart from 'primevue/chart'
 import Rating from 'primevue/rating'
-import Textarea from 'primevue/textarea'
-import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed } from 'lucide-vue-next'
+import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed, ShieldCheck, Boxes, FileText, Download, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import client from '../api/client'
@@ -30,14 +31,33 @@ const rejectId = ref(null)
 const unitStatusMap = ref({})
 const reports = ref(null)
 const reportsLoading = ref(false)
-const dateRange = ref(null) // [Date, Date]
+const dateRange = ref(null)
 const reviews = ref([])
+
+// Room Types CRUD
+const roomTypes = ref([])
+const showRoomTypeDialog = ref(false)
+const editingRoomType = ref(null)
+const roomTypeForm = ref({ name:'', description:'', capacity:2, price_per_night:350000, total_units:5 })
+const rtSaving = ref(false)
+const invoicingId = ref(null)
+
+// Room Units create
+const showUnitDialog = ref(false)
+const unitForm = ref({ code:'', room_type_id:1, status:'available' })
+const unitSaving = ref(false)
+
+// Audit logs
+const auditLogs = ref([])
+const auditLoading = ref(false)
+const activeTab = ref('bookings')
 
 const statusSeverity = (s) => ({ verified: 'success', checked_in: 'info', pending_payment: 'warn', waiting_verification: 'warn', checked_out: 'secondary', cancelled: 'danger', rejected: 'danger', expired: 'danger' }[s] || 'secondary')
 const statusLabel = (s) => s?.replace('_', ' ') || s
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n||0)
 const fmtDate = (d) => { try { return new Date(d).toISOString().slice(0,10) } catch { return d } }
 function toISO(d){ if(!d) return ''; const dt=d instanceof Date?d:new Date(d); if(isNaN(dt)) return ''; return dt.toISOString().slice(0,10) }
+const canInvoice = (s)=> ['verified','checked_in','checked_out'].includes(s)
 
 async function fetchBookings() {
   loading.value = true
@@ -62,6 +82,24 @@ async function fetchUnits() {
     roomUnits.value = Array.isArray(list) ? list : []
   } catch {}
 }
+async function fetchRoomTypes(){
+  try{
+    const { data } = await client.get('/api/room-types')
+    const list = data.data || data
+    roomTypes.value = Array.isArray(list) ? list : []
+    if(!list.length){
+      const { data: d2 } = await client.get('/api/admin/rooms')
+      const l2 = d2.data || d2
+      if(Array.isArray(l2)) roomTypes.value=l2
+    }
+  }catch{
+    try{
+      const { data } = await client.get('/api/admin/rooms')
+      const list = data.data || data
+      roomTypes.value = Array.isArray(list) ? list : []
+    }catch{ roomTypes.value=[] }
+  }
+}
 async function fetchReports(){
   reportsLoading.value=true
   try{
@@ -71,7 +109,6 @@ async function fetchReports(){
     const { data } = await client.get('/api/admin/reports/summary', { params })
     reports.value = data.data || data
   }catch(e){
-    // keep previous or fallback to computed from bookings
     reports.value = null
   }finally{ reportsLoading.value=false }
 }
@@ -82,8 +119,23 @@ async function fetchReviews(){
     reviews.value = Array.isArray(list)? list : []
   }catch{ reviews.value=[] }
 }
+async function fetchAuditLogs(){
+  auditLoading.value=true
+  try{
+    let data
+    try{ const r= await client.get('/api/admin/audit-logs'); data=r.data }catch{ const r= await client.get('/api/audit-logs'); data=r.data }
+    const list = data.data || data
+    auditLogs.value = Array.isArray(list) ? list : []
+  }catch(e){
+    try{
+      const { data } = await client.get('/api/admin/audit_logs')
+      const list=data.data||data
+      auditLogs.value=Array.isArray(list)?list:[]
+    }catch{ auditLogs.value=[] }
+  }finally{ auditLoading.value=false }
+}
 
-onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews() })
+onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews(); fetchRoomTypes(); fetchAuditLogs() })
 watch(dateRange, fetchReports)
 
 async function doVerify(id, action) {
@@ -92,7 +144,7 @@ async function doVerify(id, action) {
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action })
     toast.add({ severity: 'success', summary: 'Booking confirmed', detail: `Booking #${id} is now verified`, life: 2500 })
-    await fetchBookings(); await fetchReports()
+    await fetchBookings(); await fetchReports(); await fetchAuditLogs()
   } catch (e) { toast.add({ severity: 'error', summary: 'Could not confirm booking', detail: e?.response?.data?.message || e.message, life: 3500 }) }
   finally { actionLoading.value='' }
 }
@@ -103,17 +155,17 @@ async function confirmReject() {
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action:'rejected', reject_reason: rejectReason.value })
     toast.add({ severity:'success', summary:'Booking declined', detail:`Booking #${id} was declined`, life:2500 })
-    showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports()
+    showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports(); await fetchAuditLogs()
   } catch(e){ toast.add({ severity:'error', summary:'Could not decline booking', detail:e?.response?.data?.message||e.message, life:3500}) }
   finally{ actionLoading.value='' }
 }
 async function doCheckIn(id){
   actionLoading.value=`checkin-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Guest checked in', detail:`Booking #${id} is now checked in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check in failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Guest checked in', detail:`Booking #${id} is now checked in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Check in failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 async function doCheckOut(id){
   actionLoading.value=`checkout-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Checkout complete', detail:`Booking #${id} is now checked out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Checkout failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Checkout complete', detail:`Booking #${id} is now checked out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Checkout failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 function openDetail(row){ selected.value=row; showDetail.value=true }
 
@@ -126,9 +178,103 @@ const unitStatusOptions = [
 async function updateUnitStatus(unit){
   const newStatus = unitStatusMap.value[unit.id]
   if(!newStatus) return
-  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} is now ${newStatus}`, life:2500 }); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Could not update room', detail:e?.response?.data?.message||e.message, life:3500}) }
+  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} is now ${newStatus}`, life:2500 }); await fetchUnits(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Could not update room', detail:e?.response?.data?.message||e.message, life:3500}) }
 }
 const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn', maintenance:'danger' }[s]||'secondary')
+
+// Room Types CRUD helpers
+function openCreateRoomType(){
+  editingRoomType.value=null
+  roomTypeForm.value={ name:'', description:'', capacity:2, price_per_night:350000, total_units:5 }
+  showRoomTypeDialog.value=true
+}
+function openEditRoomType(rt){
+  editingRoomType.value=rt
+  roomTypeForm.value={
+    name: rt.name || rt.type || '',
+    description: rt.description || '',
+    capacity: rt.capacity || 2,
+    price_per_night: rt.price_per_night || rt.price || 350000,
+    total_units: rt.total_units || rt.totalUnits || 5
+  }
+  showRoomTypeDialog.value=true
+}
+async function saveRoomType(){
+  if(!roomTypeForm.value.name.trim()){ toast.add({severity:'warn', summary:'Name is required', life:2000}); return }
+  rtSaving.value=true
+  try{
+    if(editingRoomType.value){
+      await client.put(`/api/admin/room-types/${editingRoomType.value.id}`, roomTypeForm.value)
+      toast.add({ severity:'success', summary:'Room type updated', life:2500 })
+    }else{
+      await client.post('/api/admin/room-types', roomTypeForm.value)
+      toast.add({ severity:'success', summary:'Room type created', life:2500 })
+    }
+    showRoomTypeDialog.value=false
+    await fetchRoomTypes(); await fetchAuditLogs()
+  }catch(e){
+    toast.add({ severity:'error', summary:'Could not save room type', detail:e?.response?.data?.message||e.message, life:3500 })
+  }finally{ rtSaving.value=false }
+}
+async function deleteRoomType(rt){
+  if(!confirm(`Delete room type "${rt.name || rt.type}"? This cannot be undone.`)) return
+  try{
+    await client.delete(`/api/admin/room-types/${rt.id}`)
+    toast.add({ severity:'success', summary:'Room type deleted', detail:`${rt.name||rt.type} removed`, life:2500 })
+    await fetchRoomTypes(); await fetchAuditLogs()
+  }catch(e){ toast.add({ severity:'error', summary:'Could not delete', detail:e?.response?.data?.message||e.message, life:3500 }) }
+}
+
+// Room Units create
+function openCreateUnit(){
+  unitForm.value={ code:'', room_type_id: roomTypes.value[0]?.id || 1, status:'available' }
+  showUnitDialog.value=true
+}
+async function createUnit(){
+  if(!unitForm.value.code.trim()){ toast.add({severity:'warn', summary:'Code is required', detail:'Example Deluxe-101', life:2000}); return }
+  unitSaving.value=true
+  try{
+    await client.post('/api/admin/room-units', unitForm.value)
+    toast.add({ severity:'success', summary:'Room unit created', detail:`${unitForm.value.code} added`, life:2500 })
+    showUnitDialog.value=false
+    await fetchUnits(); await fetchAuditLogs()
+  }catch(e){
+    // try alternative endpoint
+    try{
+      await client.post('/api/admin/room_units', unitForm.value)
+      toast.add({ severity:'success', summary:'Room unit created', life:2500 })
+      showUnitDialog.value=false
+      await fetchUnits()
+    }catch(e2){
+      toast.add({ severity:'error', summary:'Could not create unit', detail:e?.response?.data?.message||e.message, life:3500 })
+    }
+  }finally{ unitSaving.value=false }
+}
+
+async function downloadInvoiceAdmin(booking){
+  invoicingId.value=booking.id
+  try{
+    const res = await client.get(`/api/bookings/${booking.id}/invoice`, { responseType:'blob' })
+    const blob = new Blob([res.data], { type: res.headers['content-type'] || 'application/pdf' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href=url
+    const cd = res.headers['content-disposition'] || ''
+    let filename=`invoice-${booking.id}.pdf`
+    const m=cd.match(/filename="?([^"]+)"?/)
+    if(m) filename=m[1]
+    a.download=filename
+    document.body.appendChild(a); a.click(); a.remove()
+    window.URL.revokeObjectURL(url)
+    toast.add({ severity:'success', summary:'Invoice downloaded', detail:`Invoice #${booking.id}`, life:2500 })
+  }catch(e){
+    let msg=e?.response?.data?.message||e.message
+    if(e?.response?.data instanceof Blob){
+      try{ const t=await e.response.data.text(); const j=JSON.parse(t); msg=j.message||msg }catch{}
+    }
+    toast.add({ severity:'error', summary:'Invoice not available', detail:msg, life:3500 })
+  }finally{ invoicingId.value=null }
+}
 
 // derived stats with fallback
 const totalBookings = computed(()=> reports.value?.total_bookings ?? reports.value?.bookings_count ?? bookings.value.length)
@@ -156,7 +302,6 @@ const revenueChartData = computed(()=>{
       datasets:[{ label:'Revenue', data: perDay.map(r=> Number(r.revenue||r.total||0)), borderColor:WA.brown, backgroundColor:'rgba(139,90,43,0.15)', tension:0.35, fill:true, pointBackgroundColor:WA.brown }]
     }
   }
-  // fallback: last 7 days from bookings
   const map={}
   bookings.value.forEach(b=>{
     const d=fmtDate(b.created_at || b.check_in)
@@ -189,19 +334,22 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-      <div class="flex items-center gap-3">
-        <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5"><LayoutDashboard class="w-5 h-5" /></span>
-        <div>
-          <h1 class="font-display font-bold text-2xl text-[#1A3A4A]">Dashboard</h1>
-          <p class="text-sm text-[#6B7280]">Manage bookings, rooms, and reports.</p>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+    <div class="space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-3">
+          <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5 shadow-sm"><LayoutDashboard class="w-5 h-5" /></span>
+          <div>
+            <h1 class="font-display font-bold text-3xl text-[#1A3A4A] tracking-tight" style="font-family:'Playfair Display',serif">Dashboard</h1>
+            <p class="text-sm text-[#6B7280]">Manage bookings, rooms, and reports. WarmAura hierarchy, premium control.</p>
+          </div>
+        </div>
+        <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
+          <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter by date" showIcon class="min-w-[220px]" />
+          <Button label="Refresh Data" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports(); fetchAuditLogs()" />
         </div>
       </div>
-      <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
-        <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter by date" showIcon class="min-w-[220px]" />
-        <Button label="Refresh Data" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports()" />
-      </div>
+      <div class="h-px bg-gradient-to-r from-[#C9A86A] via-[#C9A86A]/40 to-transparent"></div>
     </div>
 
     <!-- 4 stats cards -->
@@ -287,12 +435,26 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
-      <template #title><div class="flex items-center justify-between"><span class="text-[#1A3A4A] font-semibold text-base">Recent bookings</span><span class="text-xs text-[#6B7280]">{{ bookings.length }} bookings</span></div></template>
+    <!-- Tabs navigation -->
+    <div class="flex flex-wrap gap-2 border-b border-[#E5E7EB] pb-3">
+      <button v-for="t in [{id:'bookings',label:'Bookings',icon:FileText},{id:'roomtypes',label:'Room Types',icon:Boxes},{id:'units',label:'Room Units',icon:Bed},{id:'audit',label:'Audit Log',icon:ShieldCheck}]" :key="t.id" @click="activeTab=t.id" :class="['inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition', activeTab===t.id ? 'bg-[#1A3A4A] text-white shadow' : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#8B5A2B] hover:text-[#1A3A4A]']">
+        <component :is="t.icon" class="w-4 h-4" /> {{ t.label }}
+      </button>
+    </div>
+
+    <!-- Recent bookings -->
+    <Card v-show="activeTab==='bookings'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Recent bookings</span>
+          <span class="text-xs text-[#6B7280]">{{ bookings.length }} bookings</span>
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+      </template>
       <template #content>
         <DataTable :value="bookings" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll" :loading="loading" dataKey="id">
-          <Column field="id" header="ID" sortable style="width:80px" />
-          <Column field="user_id" header="User" sortable style="width:90px" />
+          <Column field="id" header="ID" sortable style="width:70px" />
+          <Column field="user_id" header="User" sortable style="width:80px" />
           <Column field="room_type_id" header="Type" style="width:80px">
             <template #body="{ data }">#{{ data.room_type_id }}</template>
           </Column>
@@ -303,7 +465,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
             <template #body="{ data }">{{ fmtDate(data.check_out) }}</template>
           </Column>
           <Column field="status" header="Status">
-            <template #body="{ data }"><Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" rounded class="capitalize" /></template>
+            <template #body="{ data }"><Tag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" rounded class="capitalize text-xs" /></template>
           </Column>
           <Column field="total_price" header="Total">
             <template #body="{ data }"><span class="font-semibold text-[#8B5A2B]">{{ fmt(data.total_price) }}</span></template>
@@ -314,13 +476,16 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
               <span v-else class="text-xs text-[#9CA3AF]">-</span>
             </template>
           </Column>
-          <Column header="Actions" style="min-width:280px">
+          <Column header="Actions" style="min-width:360px">
             <template #body="{ data }">
               <div class="flex flex-wrap gap-1.5">
                 <Button v-if="data.status==='waiting_verification'" label="Approve" size="small" class="!py-1 !px-2.5 !text-xs !bg-green-600 !border-green-600 hover:!bg-green-700 !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'verified')" />
                 <Button v-if="data.status==='waiting_verification'" label="Decline" size="small" severity="danger" outlined class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'rejected')" />
                 <Button v-if="data.status==='verified'" label="Check In" size="small" class="!py-1 !px-2.5 !text-xs !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-full" :loading="actionLoading===`checkin-${data.id}`" @click="doCheckIn(data.id)" />
                 <Button v-if="data.status==='checked_in'" label="Check Out" size="small" severity="info" class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`checkout-${data.id}`" @click="doCheckOut(data.id)" />
+                <Button v-if="canInvoice(data.status)" label="Invoice" size="small" outlined class="!py-1 !px-2.5 !text-xs !rounded-full !border-[#1A3A4A] !text-[#1A3A4A]" :loading="invoicingId===data.id" @click="downloadInvoiceAdmin(data)">
+                  <template #icon><Download class="w-3.5 h-3.5" /></template>
+                </Button>
                 <Button icon="pi pi-eye" size="small" text rounded class="!text-[#6B7280]" @click="openDetail(data)" />
               </div>
             </template>
@@ -329,29 +494,118 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <!-- Room units -->
-    <Card v-if="roomUnits.length" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
-      <template #title><span class="text-[#1A3A4A] font-semibold text-base">Room Units</span></template>
+    <!-- Room Types CRUD -->
+    <Card v-show="activeTab==='roomtypes'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Types</span>
+          <Button label="Create Room Type" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" @click="openCreateRoomType">
+            <template #icon><Plus class="w-4 h-4" /></template>
+          </Button>
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+        <p class="text-xs text-[#6B7280] mt-2">CRUD for room types. Price snapshotting keeps historical bookings intact. Hierarchy headers #1A3A4A with gold dividers.</p>
+      </template>
       <template #content>
-        <DataTable :value="roomUnits" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll">
-          <Column field="code" header="Code" sortable />
-          <Column field="room_type_id" header="Type" sortable><template #body="{ data }">#{{ data.room_type_id }}</template></Column>
-          <Column field="status" header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="unitSeverity(data.status)" rounded /></template></Column>
-          <Column header="Update Status" style="min-width:280px">
+        <DataTable :value="roomTypes" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll" dataKey="id">
+          <Column field="id" header="ID" sortable style="width:70px" />
+          <Column field="name" header="Name" sortable>
+            <template #body="{ data }">{{ data.name || data.type }}</template>
+          </Column>
+          <Column field="description" header="Description" style="max-width:240px">
+            <template #body="{ data }"><span class="text-xs text-[#6B7280] line-clamp-2">{{ data.description || '-' }}</span></template>
+          </Column>
+          <Column field="capacity" header="Capacity" sortable style="width:110px">
+            <template #body="{ data }">{{ data.capacity || 2 }} guests</template>
+          </Column>
+          <Column field="price_per_night" header="Price" sortable>
+            <template #body="{ data }"><span class="font-semibold text-[#8B5A2B]">{{ fmt(data.price_per_night || data.price || 0) }}</span></template>
+          </Column>
+          <Column field="total_units" header="Units" sortable style="width:90px">
+            <template #body="{ data }">{{ data.total_units || data.totalUnits || '-' }}</template>
+          </Column>
+          <Column header="Actions" style="min-width:180px">
             <template #body="{ data }">
-              <div class="flex gap-2">
-                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Select status" class="w-full !text-xs" />
-                <Button label="Save Changes" size="small" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-full" @click="updateUnitStatus(data)" />
+              <div class="flex gap-1.5">
+                <Button size="small" outlined class="!rounded-full !border-[#1A3A4A] !text-[#1A3A4A] !py-1 !px-2.5 text-xs" @click="openEditRoomType(data)">
+                  <template #icon><Pencil class="w-3.5 h-3.5" /></template> Edit
+                </Button>
+                <Button size="small" severity="danger" outlined class="!rounded-full !py-1 !px-2.5 text-xs" @click="deleteRoomType(data)">
+                  <template #icon><Trash2 class="w-3.5 h-3.5" /></template> Delete
+                </Button>
               </div>
             </template>
           </Column>
         </DataTable>
+        <div v-if="!roomTypes.length" class="text-center py-8 text-sm text-[#6B7280]">No room types yet. Create your first type above.</div>
       </template>
     </Card>
 
-    <!-- Reviews -->
+    <!-- Room units -->
+    <Card v-show="activeTab==='units'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Units</span>
+          <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-xl" @click="openCreateUnit">
+            <template #icon><Plus class="w-4 h-4" /></template>
+          </Button>
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+      </template>
+      <template #content>
+        <DataTable :value="roomUnits" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll" dataKey="id" :loading="loading">
+          <Column field="code" header="Code" sortable />
+          <Column field="room_type_id" header="Type" sortable><template #body="{ data }">#{{ data.room_type_id }}</template></Column>
+          <Column field="status" header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="unitSeverity(data.status)" rounded class="text-xs" /></template></Column>
+          <Column header="Update Status" style="min-width:280px">
+            <template #body="{ data }">
+              <div class="flex gap-2">
+                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Select status" class="w-full !text-xs" />
+                <Button label="Save" size="small" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-full !px-4" @click="updateUnitStatus(data)" />
+              </div>
+            </template>
+          </Column>
+        </DataTable>
+        <p v-if="!roomUnits.length" class="text-center py-6 text-sm text-[#6B7280]">No units yet. Create a unit to assign at check in.</p>
+      </template>
+    </Card>
+
+    <!-- Audit logs -->
+    <Card v-show="activeTab==='audit'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><ShieldCheck class="w-5 h-5 text-[#8B5A2B]" /> Audit Log</span>
+          <Button label="Refresh" icon="pi pi-refresh" outlined size="small" class="!rounded-full !border-[#8B5A2B] !text-[#8B5A2B]" :loading="auditLoading" @click="fetchAuditLogs" />
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+        <p class="text-xs text-[#6B7280] mt-2">Who changed what, when. Tracks booking, room, and auth actions for accountability.</p>
+      </template>
+      <template #content>
+        <DataTable :value="auditLogs" paginator :rows="10" stripedRows class="text-sm" responsiveLayout="scroll" :loading="auditLoading" dataKey="id">
+          <Column field="id" header="ID" style="width:80px" sortable />
+          <Column field="user_id" header="User" style="width:100px">
+            <template #body="{ data }"><span class="text-xs">{{ data.user_id ?? data.userId ?? '-' }}</span></template>
+          </Column>
+          <Column field="action" header="Action" sortable>
+            <template #body="{ data }"><Tag :value="data.action" severity="secondary" rounded class="text-xs" /></template>
+          </Column>
+          <Column field="entity" header="Entity" sortable>
+            <template #body="{ data }">{{ data.entity || '-' }} <span v-if="data.entity_id" class="text-[#6B7280]">#{{ data.entity_id }}</span></template>
+          </Column>
+          <Column field="created_at" header="Time" sortable>
+            <template #body="{ data }"><span class="text-xs">{{ data.created_at ? new Date(data.created_at).toLocaleString('id-ID') : (data.createdAt ? new Date(data.createdAt).toLocaleString('id-ID') : '-') }}</span></template>
+          </Column>
+          <Column field="payload" header="Details">
+            <template #body="{ data }"><span class="text-xs text-[#6B7280] line-clamp-2 break-all">{{ typeof data.payload==='string' ? data.payload.slice(0,120) : JSON.stringify(data.payload||'').slice(0,120) }}</span></template>
+          </Column>
+        </DataTable>
+        <div v-if="!auditLogs.length && !auditLoading" class="text-center py-8 text-sm text-[#6B7280]">No audit entries yet. Actions will appear here after you manage bookings or rooms.</div>
+      </template>
+    </Card>
+
+    <!-- Reviews always visible below tabs -->
     <Card v-if="reviews.length" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
-      <template #title><span class="text-[#1A3A4A] font-semibold text-base">Reviews ({{ reviews.length }})</span></template>
+      <template #title><span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Reviews ({{ reviews.length }})</span><div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div></template>
       <template #content>
         <DataTable :value="reviews" paginator :rows="5" stripedRows class="text-sm">
           <Column field="id" header="ID" style="width:70px" />
@@ -381,6 +635,64 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       <template #footer>
         <Button label="Cancel" text @click="showReject=false" />
         <Button label="Decline Booking" severity="danger" :loading="actionLoading===`verify-${rejectId}`" @click="confirmReject" />
+      </template>
+    </Dialog>
+
+    <!-- Room Type Dialog -->
+    <Dialog v-model:visible="showRoomTypeDialog" modal :header="editingRoomType ? 'Edit Room Type' : 'Create Room Type'" :style="{ width:'520px' }" class="!rounded-2xl">
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Name</label>
+          <InputText v-model="roomTypeForm.name" placeholder="Deluxe" class="w-full mt-1" />
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Description</label>
+          <Textarea v-model="roomTypeForm.description" rows="2" placeholder="Warm aura, balcony, breakfast included" class="w-full mt-1" autoResize />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Capacity</label>
+            <InputNumber v-model="roomTypeForm.capacity" :min="1" :max="10" showButtons class="w-full mt-1" />
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Total Units</label>
+            <InputNumber v-model="roomTypeForm.total_units" :min="1" :max="100" showButtons class="w-full mt-1" />
+          </div>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Price per Night (IDR)</label>
+          <InputNumber v-model="roomTypeForm.price_per_night" mode="currency" currency="IDR" locale="id-ID" class="w-full mt-1" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text class="!rounded-xl" @click="showRoomTypeDialog=false" />
+        <Button :label="editingRoomType ? 'Update' : 'Create'" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" :loading="rtSaving" @click="saveRoomType" />
+      </template>
+    </Dialog>
+
+    <!-- Room Unit Dialog -->
+    <Dialog v-model:visible="showUnitDialog" modal header="Create Room Unit" :style="{ width:'440px' }" class="!rounded-2xl">
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Code</label>
+          <InputText v-model="unitForm.code" placeholder="Deluxe-101" class="w-full mt-1" />
+          <p class="text-xs text-[#6B7280] mt-1">Unique code like Standard-01 or Suite-201.</p>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Room Type</label>
+          <Select v-model="unitForm.room_type_id" :options="roomTypes" optionLabel="name" optionValue="id" placeholder="Select type" class="w-full mt-1">
+            <template #option="{ option }">{{ option.name || option.type }} (#{{ option.id }})</template>
+            <template #value="{ value }"><span v-if="value">Type #{{ value }}</span><span v-else class="text-[#9CA3AF]">Select type</span></template>
+          </Select>
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-[#1A3A4A] uppercase tracking-wide">Status</label>
+          <Select v-model="unitForm.status" :options="unitStatusOptions" optionLabel="label" optionValue="value" class="w-full mt-1" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text class="!rounded-xl" @click="showUnitDialog=false" />
+        <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-xl" :loading="unitSaving" @click="createUnit" />
       </template>
     </Dialog>
   </div>

@@ -237,3 +237,75 @@ func (s *BookingOpsService) UpdateRoomUnitStatus(ctx context.Context, unitID int
 	unit.Status = newStatus
 	return unit, nil
 }
+
+// CancelBooking cancels a booking if caller owns it and status is pending_payment or waiting_verification.
+// Sets status to cancelled, writes audit_logs and logs email asynchronously.
+func (s *BookingOpsService) CancelBooking(ctx context.Context, bookingID, actorID int64) (*model.Booking, error) {
+	tx, err := s.DB.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		}
+	}()
+
+	booking, err := s.BookingRepo.GetByIDTx(tx, bookingID)
+	if err != nil {
+		_ = tx.Rollback()
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Booking not found")
+		}
+		return nil, err
+	}
+	if booking.UserID != actorID {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("forbidden: not owner")
+	}
+	if booking.Status != model.BookingPendingPayment && booking.Status != model.BookingWaitingVerification {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("conflict: only pending_payment or waiting_verification can be cancelled, current is %s", booking.Status)
+	}
+
+	var updated model.Booking
+	err = tx.GetContext(ctx, &updated,
+		`UPDATE bookings SET status=$1, updated_at=now() WHERE id=$2
+		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
+		model.BookingCancelled, bookingID)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("cancel update failed: %w", err)
+	}
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"booking_id":  bookingID,
+		"prev_status": booking.Status,
+		"new_status":  model.BookingCancelled,
+		"voucher_id":  booking.VoucherID,
+	})
+	_, _ = tx.ExecContext(ctx, `INSERT INTO audit_logs (user_id, action, entity, entity_id, payload) VALUES ($1,$2,$3,$4,$5::jsonb)`,
+		actorID, "booking.cancel", "bookings", bookingID, string(payload))
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	slog.Info("booking cancelled", "booking_id", bookingID, "actor", actorID, "prev_status", booking.Status)
+	// Email log only non-blocking; resolve recipient
+	func() {
+		to := fmt.Sprintf("user-%d@xyz-hotel.local", actorID)
+		if s.DB != nil {
+			var email string
+			if err := s.DB.Get(&email, `SELECT email FROM users WHERE id=$1`, actorID); err == nil && email != "" {
+				to = email
+			}
+		}
+		subject := BookingCancelledSubject(bookingID)
+		body := BookingCancelledBody(bookingID)
+		SendAsync(to, subject, body)
+	}()
+	// voucher decrement note: logged via audit payload, no used_count rollback (business keeps quota consumed)
+	slog.Info("booking cancel voucher logged", "booking_id", bookingID, "voucher_id", booking.VoucherID)
+	return &updated, nil
+}

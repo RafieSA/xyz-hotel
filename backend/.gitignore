@@ -4,3 +4,9 @@ storage/uploads/*
 !storage/uploads/bookings
 storage/uploads/bookings/*
 !storage/uploads/bookings/.gitkeep
+storage/invoices/*
+!storage/invoices/.gitkeep
+logs/*
+!logs/.gitkeep
+backend/logs/*
+!backend/logs/.gitkeep

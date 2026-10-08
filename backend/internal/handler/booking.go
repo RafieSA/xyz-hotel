@@ -447,10 +447,66 @@ func (h *BookingHandler) VerifyBooking(c *fiber.Ctx) error {
 	_, _ = h.BookingRepo.DB.Exec(`INSERT INTO audit_logs (user_id, action, entity, entity_id, payload) VALUES ($1,$2,$3,$4,$5::jsonb)`,
 		userID, "booking.verify", "bookings", bookingID, string(payload))
 	slog.Info("booking verified", "booking_id", bookingID, "action", req.Action, "by", userID, "role", role)
+	// Email log only non-blocking for verified (and rejected) with warm template
+	func() {
+		var to string
+		if h.BookingRepo != nil && h.BookingRepo.DB != nil {
+			_ = h.BookingRepo.DB.Get(&to, `SELECT email FROM users WHERE id=$1`, booking.UserID)
+		}
+		if to == "" {
+			to = fmt.Sprintf("user-%d@xyz-hotel.local", booking.UserID)
+		}
+		if req.Action == "verified" {
+			subject := service.BookingVerifiedSubject(bookingID)
+			body := service.BookingVerifiedBody(bookingID, booking.CheckIn.Format("2006-01-02"), booking.CheckOut.Format("2006-01-02"))
+			service.SendAsync(to, subject, body)
+		} else {
+			reason := ""
+			if rejectReason != nil {
+				reason = *rejectReason
+			}
+			subject := service.BookingRejectedSubject(bookingID)
+			body := service.BookingRejectedBody(bookingID, reason)
+			service.SendAsync(to, subject, body)
+		}
+	}()
 	if req.Action == "verified" {
 		return c.JSON(fiber.Map{"message": "Booking verified successfully", "data": updated})
 	}
 	return c.JSON(fiber.Map{"message": "Booking rejected", "data": updated})
+}
+
+// CancelBooking handles PATCH /api/bookings/:id/cancel
+// Auth required, only owner of booking, status pending_payment or waiting_verification else 409.
+func (h *BookingHandler) CancelBooking(c *fiber.Ctx) error {
+	userID, ok := getAuthUserID(c)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to cancel bookings"})
+	}
+	idStr := c.Params("id")
+	bookingID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || bookingID <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Booking ID is invalid"})
+	}
+	if h.BookingOps == nil || h.BookingRepo == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
+	}
+	updated, err := h.BookingOps.CancelBooking(c.Context(), bookingID, userID)
+	if err != nil {
+		msg := err.Error()
+		switch {
+		case contains(msg, "Booking not found") || msg == "booking not found":
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Booking not found"})
+		case contains(msg, "forbidden") || contains(msg, "not owner"):
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "You can only cancel your own bookings"})
+		case contains(msg, "conflict") || contains(msg, "only pending_payment") || contains(msg, "can be cancelled"):
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
+		default:
+			slog.Error("cancel booking failed", "err", err, "booking_id", bookingID, "user_id", userID)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not cancel your booking. Please try again"})
+		}
+	}
+	return c.JSON(fiber.Map{"message": "Booking cancelled successfully", "data": updated})
 }
 
 // CheckIn handles PATCH /api/admin/bookings/:id/checkin (owner/manager/receptionist)

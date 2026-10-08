@@ -20,7 +20,7 @@ func NewRoomRepo(db *sqlx.DB) *RoomRepo { return &RoomRepo{DB: db} }
 // GetRoomTypeByID returns room_type by id or error.
 func (r *RoomRepo) GetRoomTypeByID(id int64) (*model.RoomType, error) {
 	var rt model.RoomType
-	err := r.DB.Get(&rt, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at FROM room_types WHERE id=$1`, id)
+	err := r.DB.Get(&rt, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at FROM room_types WHERE id=$1 AND deleted_at IS NULL`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (r *RoomRepo) GetRoomTypeByID(id int64) (*model.RoomType, error) {
 // GetRoomTypeByIDTx fetches room_type inside a transaction with FOR UPDATE lock on room_types row.
 func (r *RoomRepo) GetRoomTypeByIDTx(tx *sqlx.Tx, id int64) (*model.RoomType, error) {
 	var rt model.RoomType
-	err := tx.Get(&rt, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at FROM room_types WHERE id=$1 FOR UPDATE`, id)
+	err := tx.Get(&rt, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at FROM room_types WHERE id=$1 FOR UPDATE`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (r *RoomRepo) GetRoomTypeByIDTx(tx *sqlx.Tx, id int64) (*model.RoomType, er
 // ListRoomTypes returns all room types.
 func (r *RoomRepo) ListRoomTypes() ([]model.RoomType, error) {
 	var out []model.RoomType
-	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at FROM room_types ORDER BY price ASC`)
+	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at FROM room_types WHERE deleted_at IS NULL ORDER BY price ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (r *RoomRepo) ListRoomTypes() ([]model.RoomType, error) {
 // ListRoomTypesWithRating returns room types with avg_rating and review_count.
 func (r *RoomRepo) ListRoomTypesWithRating() ([]model.RoomTypeWithRating, error) {
 	var out []model.RoomTypeWithRating
-	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, avg_rating, review_count, created_at, updated_at FROM room_types ORDER BY price ASC`)
+	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, avg_rating, review_count, created_at, updated_at FROM room_types WHERE deleted_at IS NULL ORDER BY price ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (r *RoomRepo) ListRoomTypesWithRating() ([]model.RoomTypeWithRating, error)
 // CountUnits returns total_units for a room type (convenience).
 func (r *RoomRepo) CountUnits(roomTypeID int64) (int, error) {
 	var total int
-	err := r.DB.Get(&total, `SELECT total_units FROM room_types WHERE id=$1`, roomTypeID)
+	err := r.DB.Get(&total, `SELECT total_units FROM room_types WHERE id=$1 AND deleted_at IS NULL`, roomTypeID)
 	return total, err
 }
 
@@ -167,3 +167,88 @@ func (r *RoomRepo) ListAllUnits(ctx context.Context) ([]model.RoomUnit, error) {
 	}
 	return out, nil
 }
+
+// CreateRoomType inserts a new room_type.
+func (r *RoomRepo) CreateRoomType(rt *model.RoomType) (*model.RoomType, error) {
+	var created model.RoomType
+	err := r.DB.Get(&created, `INSERT INTO room_types (name, description, capacity, price, total_units) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at`,
+		rt.Name, rt.Description, rt.Capacity, rt.Price, rt.TotalUnits)
+	if err != nil {
+		return nil, err
+	}
+	return &created, nil
+}
+
+// UpdateRoomType updates room_type fields.
+func (r *RoomRepo) UpdateRoomType(id int64, rt *model.RoomType) (*model.RoomType, error) {
+	var updated model.RoomType
+	err := r.DB.Get(&updated, `UPDATE room_types SET name=$1, description=$2, capacity=$3, price=$4, total_units=$5, updated_at=now() WHERE id=$6 AND deleted_at IS NULL RETURNING id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at`,
+		rt.Name, rt.Description, rt.Capacity, rt.Price, rt.TotalUnits, id)
+	if err != nil {
+		return nil, err
+	}
+	return &updated, nil
+}
+
+// SoftDeleteRoomType sets deleted_at.
+func (r *RoomRepo) SoftDeleteRoomType(id int64) error {
+	res, err := r.DB.Exec(`UPDATE room_types SET deleted_at=now(), updated_at=now() WHERE id=$1 AND deleted_at IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// GetRoomTypeAdmin returns room type even if soft-deleted (for admin checks).
+func (r *RoomRepo) GetRoomTypeAdmin(id int64) (*model.RoomType, error) {
+	var rt model.RoomType
+	err := r.DB.Get(&rt, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at FROM room_types WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &rt, nil
+}
+
+// ListRoomTypesAdmin includes all (admin view) — currently same as public excluding deleted but available for future.
+func (r *RoomRepo) ListRoomTypesAdmin() ([]model.RoomType, error) {
+	var out []model.RoomType
+	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, created_at, updated_at, deleted_at FROM room_types WHERE deleted_at IS NULL ORDER BY price ASC`)
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []model.RoomType{}
+	}
+	return out, nil
+}
+
+// CreateRoomUnit inserts a new room unit.
+func (r *RoomRepo) CreateRoomUnit(roomTypeID int64, code, status string) (*model.RoomUnit, error) {
+	var u model.RoomUnit
+	err := r.DB.Get(&u, `INSERT INTO room_units (room_type_id, code, status) VALUES ($1,$2,$3) RETURNING id, room_type_id, code, status, created_at, updated_at, deleted_at`,
+		roomTypeID, code, status)
+	if err != nil {
+		return nil, err
+	}
+	// update total_units denormalized
+	_, _ = r.DB.Exec(`UPDATE room_types SET total_units = (SELECT COUNT(*) FROM room_units WHERE room_type_id=$1 AND deleted_at IS NULL), updated_at=now() WHERE id=$1`, roomTypeID)
+	return &u, nil
+}
+
+// SoftDeleteRoomUnit soft deletes a unit.
+func (r *RoomRepo) SoftDeleteRoomUnit(id int64) error {
+	res, err := r.DB.Exec(`UPDATE room_units SET deleted_at=now(), updated_at=now() WHERE id=$1 AND deleted_at IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+

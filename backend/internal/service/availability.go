@@ -227,11 +227,23 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		_ = tx.Rollback()
 		return nil, fmt.Errorf("audit log failed: %w", err)
 	}
-
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	slog.Info("booking created", "booking_id", created.ID, "user_id", userID, "room_type_id", roomTypeID, "nights", nights, "total_price", totalPrice, "voucher_code", trimmedCode)
+	// Email log only: non-blocking, warm template. Resolve recipient email via DB lookup with fallback.
+	func() {
+		to := fmt.Sprintf("user-%d@xyz-hotel.local", userID)
+		if s.DB != nil {
+			var email string
+			if err := s.DB.Get(&email, `SELECT email FROM users WHERE id=$1`, userID); err == nil && strings.TrimSpace(email) != "" {
+				to = email
+			}
+		}
+		subject := BookingCreatedSubject(created.ID)
+		body := BookingCreatedBody(created.ID, roomTypeID, checkInStr, checkOutStr, guests, totalPrice)
+		SendAsync(to, subject, body)
+	}()
 	return created, nil
 }
 

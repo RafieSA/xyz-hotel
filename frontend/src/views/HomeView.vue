@@ -6,7 +6,7 @@ import Tag from 'primevue/tag'
 import Rating from 'primevue/rating'
 import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
-import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves } from 'lucide-vue-next'
+import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves, Heart } from 'lucide-vue-next'
 import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
@@ -242,7 +242,39 @@ async function submitReview(){
   }catch(e){ toast.add({severity:'error', summary:'Could not submit review', detail:e?.response?.data?.message||e.message, life:3500}) }
   finally{ submittingReview.value=false }
 }
-onMounted(()=>{ fetchRoomTypes(); fetchReviews(); fetchMyBookings() })
+const wishlistIds = ref(new Set())
+const wishLoading = ref(null)
+async function fetchWishlist(){
+  if(!auth.isAuthenticated){ wishlistIds.value=new Set(); return }
+  try{
+    const { data } = await client.get('/api/wishlist')
+    const list = data.data || data
+    const arr = Array.isArray(list) ? list : []
+    const ids = arr.map(i=> i.room_type_id || i.roomTypeId || i.id || i.room_type?.id).filter(Boolean)
+    wishlistIds.value = new Set(ids)
+  }catch{ wishlistIds.value=new Set() }
+}
+function isWished(roomId){ return wishlistIds.value.has(roomId) }
+async function toggleWishlist(room){
+  if(!auth.isAuthenticated){ toast.add({severity:'warn', summary:'Sign in to save', detail:'Create an account to use wishlist', life:2500}); router.push('/login'); return }
+  const id = room.id
+  const wasWished = isWished(id)
+  wishLoading.value=id
+  try{
+    const { data } = await client.post('/api/wishlist/toggle', { room_type_id: id })
+    const wished = data.data?.wished ?? data.wished ?? !wasWished
+    const next = new Set(wishlistIds.value)
+    if(wished) next.add(id); else next.delete(id)
+    wishlistIds.value = next
+    if(wished) toast.add({severity:'success', summary:'Added to wishlist', detail:`${room.type} saved`, life:2000})
+    else toast.add({severity:'info', summary:'Removed from wishlist', detail:`${room.type} removed`, life:2000})
+    if(typeof window !== 'undefined') window.dispatchEvent(new Event('wishlist:updated'))
+  }catch(e){
+    toast.add({severity:'error', summary:'Could not update wishlist', detail:e?.response?.data?.message || e.message, life:3000})
+  }finally{ wishLoading.value=null }
+}
+onMounted(()=>{ fetchRoomTypes(); fetchReviews(); fetchMyBookings(); fetchWishlist() })
+watch(()=>auth.isAuthenticated, fetchWishlist)
 </script>
 
 <template>
@@ -298,7 +330,7 @@ onMounted(()=>{ fetchRoomTypes(); fetchReviews(); fetchMyBookings() })
     </section>
 
     <!-- Rooms -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16">
+    <section id="rooms" class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16">
       <div class="flex items-end justify-between gap-4">
         <div>
           <h2 class="font-display font-bold text-2xl md:text-3xl text-[#1A3A4A]">Choose your room</h2>
@@ -316,6 +348,9 @@ onMounted(()=>{ fetchRoomTypes(); fetchReviews(); fetchMyBookings() })
               <img :src="r.img" :alt="r.type + ' room'" class="w-full aspect-[16/10] object-cover" />
               <span class="absolute top-3 left-3 bg-white/95 backdrop-blur text-[#1A3A4A] text-xs font-bold rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm"><Star class="w-3.5 h-3.5 text-[#C9A86A] fill-[#C9A86A]" /> {{ avgRating(r.id).toFixed(1) }} <span v-if="ratingCount(r.id)" class="font-normal text-[#6B7280]">({{ ratingCount(r.id) }})</span></span>
               <span class="absolute top-3 right-3 bg-[#8B5A2B] text-white text-xs font-semibold rounded-full px-2.5 py-1">{{ r.type }}</span>
+              <button @click="toggleWishlist(r)" :disabled="wishLoading===r.id" class="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center hover:scale-105 transition border border-white" :aria-label="isWished(r.id) ? 'Remove from wishlist' : 'Add to wishlist'">
+                <Heart class="w-5 h-5 transition-colors" :class="isWished(r.id) ? 'fill-[#8B5A2B] text-[#8B5A2B]' : 'text-[#9CA3AF]'" />
+              </button>
             </div>
           </template>
           <template #title><span class="text-[#1A3A4A] font-display font-semibold">{{ r.type }}</span></template>

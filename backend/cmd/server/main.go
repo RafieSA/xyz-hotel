@@ -54,20 +54,39 @@ func main() {
 		go func() {
 			// initial run after 10s
 			time.Sleep(10 * time.Second)
-			if n, err := bookingRepo.ExpirePending(); err != nil {
-				slog.Error("expire ticker failed", "err", err)
-			} else if n > 0 {
-				slog.Info("expired bookings", "count", n)
+			expireAndNotify := func() {
+				// Fetch candidates that will expire (for email + audit) before UPDATE
+				type candidate struct {
+					ID     int64  `db:"id"`
+					UserID int64  `db:"user_id"`
+					Email  string `db:"email"`
+				}
+				var cands []candidate
+				_ = db.Select(&cands, `SELECT b.id, b.user_id, u.email FROM bookings b JOIN users u ON u.id=b.user_id WHERE b.status='pending_payment' AND b.created_at < now() - interval '12 hours' LIMIT 100`)
+				if n, err := bookingRepo.ExpirePending(); err != nil {
+					slog.Error("expire ticker failed", "err", err)
+				} else {
+					if n > 0 {
+						slog.Info("expired bookings", "count", n)
+					}
+					// Audit + email per expired booking (non-blocking email)
+					for _, c := range cands {
+						_, _ = db.Exec(`INSERT INTO audit_logs (user_id, action, entity, entity_id, payload) VALUES ($1,$2,$3,$4,$5::jsonb)`, c.UserID, "booking.expired", "bookings", c.ID, `{"reason":"auto-expired after 12h"}`)
+						to := c.Email
+						if to == "" {
+							to = "unknown@xyz-hotel.local"
+						}
+						subject := service.BookingExpiredSubject(c.ID)
+						body := service.BookingExpiredBody(c.ID)
+						service.SendAsync(to, subject, body)
+					}
+				}
 			}
+			expireAndNotify()
 			ticker := time.NewTicker(5 * time.Minute)
 			defer ticker.Stop()
 			for range ticker.C {
-				n, err := bookingRepo.ExpirePending()
-				if err != nil {
-					slog.Error("expire ticker failed", "err", err)
-				} else if n > 0 {
-					slog.Info("expired bookings", "count", n)
-				}
+				expireAndNotify()
 			}
 		}()
 	}
@@ -75,6 +94,16 @@ func main() {
 	// Ensure upload dir exists (private storage)
 	if err := os.MkdirAll(filepath.Join("storage", "uploads", "bookings"), 0755); err != nil {
 		slog.Error("failed to create upload dir", "err", err)
+	}
+	// Ensure email log dir exists
+	if err := os.MkdirAll(filepath.Join("logs"), 0755); err != nil {
+		slog.Error("failed to create logs dir", "err", err)
+	}
+	if err := os.MkdirAll(filepath.Join("storage", "invoices"), 0755); err != nil {
+		slog.Error("failed to create invoices dir", "err", err)
+	}
+	if err := os.MkdirAll(filepath.Join("backend", "logs"), 0755); err != nil {
+		slog.Error("failed to create backend/logs dir", "err", err)
 	}
 
 	app := fiber.New(fiber.Config{
@@ -98,6 +127,10 @@ func main() {
 	var voucherHandler *handler.VoucherHandler
 	var reviewHandler *handler.ReviewHandler
 	var reportHandler *handler.ReportHandler
+	var auditHandler *handler.AuditHandler
+	var wishlistHandler *handler.WishlistHandler
+	var roomHandler *handler.RoomHandler
+	var invoiceHandler *handler.InvoiceHandler
 	if db != nil {
 		userRepo := repo.NewUserRepo(db)
 		roomRepo := repo.NewRoomRepo(db)
@@ -126,6 +159,14 @@ func main() {
 		reviewHandler = handler.NewReviewHandler(reviewSvc)
 		reportSvc := service.NewReportService(db)
 		reportHandler = handler.NewReportHandler(reportSvc)
+		auditRepo := repo.NewAuditRepo(db)
+		auditHandler = handler.NewAuditHandler(auditRepo)
+		wishlistRepo := repo.NewWishlistRepo(db)
+		wishlistSvc := service.NewWishlistService(wishlistRepo)
+		wishlistHandler = handler.NewWishlistHandler(wishlistSvc)
+		roomHandler = handler.NewRoomHandler(roomRepo)
+		invoiceSvc := service.NewInvoiceService(db)
+		invoiceHandler = handler.NewInvoiceHandler(invoiceSvc, bookingRepo)
 	}
 
 	// Public auth routes
@@ -167,13 +208,32 @@ func main() {
 		bookings.Get("/", bookingHandler.ListBookings)
 		bookings.Post("/", bookingHandler.CreateBooking)
 		bookings.Post("/:id/proof", bookingHandler.UploadProof)
+		bookings.Patch("/:id/cancel", bookingHandler.CancelBooking)
+		if invoiceHandler != nil {
+			bookings.Get("/:id/invoice", invoiceHandler.GetInvoice)
+		}
 		app.Get("/api/bookings", middleware.Auth(jwtSecret), bookingHandler.ListBookings)
 		app.Post("/api/bookings", middleware.Auth(jwtSecret), bookingHandler.CreateBooking)
 		app.Post("/api/bookings/:id/proof", middleware.Auth(jwtSecret), bookingHandler.UploadProof)
+		app.Patch("/api/bookings/:id/cancel", middleware.Auth(jwtSecret), bookingHandler.CancelBooking)
+		if invoiceHandler != nil {
+			app.Get("/api/bookings/:id/invoice", middleware.Auth(jwtSecret), invoiceHandler.GetInvoice)
+		}
 	} else {
 		booking := app.Group("/api/bookings")
 		booking.Get("/", handler.ListBookingsStub)
 		booking.Post("/", handler.CreateBookingStub)
+	}
+	// Wishlist (auth required) - heart toggle on room cards
+	if wishlistHandler != nil {
+		wl := app.Group("/api/wishlist", middleware.Auth(jwtSecret))
+		wl.Get("/", wishlistHandler.List)
+		wl.Post("/toggle", wishlistHandler.Toggle)
+		wl.Delete("/:room_type_id", wishlistHandler.Delete)
+		// also support without trailing slash
+		app.Get("/api/wishlist", middleware.Auth(jwtSecret), wishlistHandler.List)
+		app.Post("/api/wishlist/toggle", middleware.Auth(jwtSecret), wishlistHandler.Toggle)
+		app.Delete("/api/wishlist/:room_type_id", middleware.Auth(jwtSecret), wishlistHandler.Delete)
 	}
 
 	// Admin (owner/manager only) if db available
@@ -184,6 +244,9 @@ func main() {
 		})
 		admin.Get("/bookings", bookingHandler.ListBookings)
 		admin.Patch("/bookings/:id/verify", bookingHandler.VerifyBooking)
+		if auditHandler != nil {
+			admin.Get("/audit-logs", auditHandler.ListAuditLogs)
+		}
 		if voucherHandler != nil {
 			admin.Get("/vouchers", voucherHandler.ListVouchers)
 			admin.Post("/vouchers", voucherHandler.CreateVoucher)
@@ -201,6 +264,15 @@ func main() {
 			}
 			return c.JSON(fiber.Map{"data": types})
 		})
+		if roomHandler != nil {
+			admin.Get("/room-types", roomHandler.ListRoomTypesAdmin)
+			admin.Post("/room-types", roomHandler.CreateRoomType)
+			admin.Put("/room-types/:id", roomHandler.UpdateRoomType)
+			admin.Delete("/room-types/:id", roomHandler.DeleteRoomType)
+			admin.Get("/room-units", roomHandler.ListRoomUnits)
+			admin.Post("/room-units", roomHandler.CreateRoomUnit)
+			admin.Delete("/room-units/:id", roomHandler.DeleteRoomUnit)
+		}
 		// Ops: check-in/out + room unit status allowed for owner/manager/receptionist
 		ops := app.Group("/api/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist))
 		ops.Patch("/bookings/:id/checkin", bookingHandler.CheckIn)
