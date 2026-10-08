@@ -60,10 +60,10 @@ func (r *BookingRepo) CountOverlappingAll(roomTypeID int64, checkIn, checkOut st
 func (r *BookingRepo) CreateTx(tx *sqlx.Tx, b *model.Booking) (*model.Booking, error) {
 	var created model.Booking
 	err := tx.Get(&created,
-		`INSERT INTO bookings (user_id, room_type_id, check_in, check_out, guests, total_price, status)
-		 VALUES ($1,$2,$3::date,$4::date,$5,$6,$7)
+		`INSERT INTO bookings (user_id, room_type_id, check_in, check_out, guests, total_price, status, voucher_id)
+		 VALUES ($1,$2,$3::date,$4::date,$5,$6,$7,$8)
 		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
-		b.UserID, b.RoomTypeID, b.CheckIn.Format("2006-01-02"), b.CheckOut.Format("2006-01-02"), b.Guests, b.TotalPrice, b.Status)
+		b.UserID, b.RoomTypeID, b.CheckIn.Format("2006-01-02"), b.CheckOut.Format("2006-01-02"), b.Guests, b.TotalPrice, b.Status, b.VoucherID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +118,73 @@ func (r *BookingRepo) GetByID(id int64) (*model.Booking, error) {
 	err := r.DB.Get(&b,
 		`SELECT id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at
 		 FROM bookings WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+// GetByIDTx fetches a booking by id FOR UPDATE inside a transaction.
+func (r *BookingRepo) GetByIDTx(tx *sqlx.Tx, id int64) (*model.Booking, error) {
+	var b model.Booking
+	err := tx.Get(&b,
+		`SELECT id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at
+		 FROM bookings WHERE id=$1 FOR UPDATE`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// UpdateProofURL updates proof_url and status atomically.
+func (r *BookingRepo) UpdateProofURL(id int64, proofURL string, newStatus string) (*model.Booking, error) {
+	var b model.Booking
+	err := r.DB.Get(&b,
+		`UPDATE bookings SET proof_url=$1, status=$2, updated_at=now()
+		 WHERE id=$3
+		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
+		proofURL, newStatus, id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// UpdateProofURLTx updates proof_url and status inside a transaction.
+func (r *BookingRepo) UpdateProofURLTx(tx *sqlx.Tx, id int64, proofURL string, newStatus string) (*model.Booking, error) {
+	var b model.Booking
+	err := tx.Get(&b,
+		`UPDATE bookings SET proof_url=$1, status=$2, updated_at=now()
+		 WHERE id=$3
+		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
+		proofURL, newStatus, id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// UpdateStatus updates booking status and optionally reject_reason.
+func (r *BookingRepo) UpdateStatus(id int64, status string, rejectReason *string) (*model.Booking, error) {
+	var b model.Booking
+	err := r.DB.Get(&b,
+		`UPDATE bookings SET status=$1, reject_reason=$2, updated_at=now()
+		 WHERE id=$3
+		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
+		status, rejectReason, id)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+// UpdateStatusTx updates booking status inside a transaction.
+func (r *BookingRepo) UpdateStatusTx(tx *sqlx.Tx, id int64, status string, rejectReason *string) (*model.Booking, error) {
+	var b model.Booking
+	err := tx.Get(&b,
+		`UPDATE bookings SET status=$1, reject_reason=$2, updated_at=now()
+		 WHERE id=$3
+		 RETURNING id, user_id, room_type_id, room_unit_id, check_in, check_out, guests, total_price, status, voucher_id, proof_url, reject_reason, created_at, updated_at`,
+		status, rejectReason, id)
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"strings"
 	"time"
 
 	"xyz-hotel/backend/internal/model"
@@ -30,6 +32,7 @@ type AvailabilityService struct {
 	DB          *sqlx.DB
 	BookingRepo *repo.BookingRepo
 	RoomRepo    *repo.RoomRepo
+	VoucherRepo *repo.VoucherRepo
 }
 
 func NewAvailabilityService(db *sqlx.DB) *AvailabilityService {
@@ -37,6 +40,7 @@ func NewAvailabilityService(db *sqlx.DB) *AvailabilityService {
 		DB:          db,
 		BookingRepo: repo.NewBookingRepo(db),
 		RoomRepo:    repo.NewRoomRepo(db),
+		VoucherRepo: repo.NewVoucherRepo(db),
 	}
 }
 
@@ -88,8 +92,8 @@ func (s *AvailabilityService) CheckAvailability(ctx context.Context, roomTypeID 
 }
 
 // CreateBooking creates a booking transactionally with FOR UPDATE to prevent race conditions.
-// Steps: BEGIN; SELECT room_type FOR UPDATE; SELECT COUNT(*) FROM bookings FOR UPDATE; validate availability; INSERT pending_payment with total_price snapshot; audit log; COMMIT.
-func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTypeID int64, checkInStr, checkOutStr string, guests int) (*model.Booking, error) {
+// Steps: BEGIN; SELECT room_type FOR UPDATE; SELECT COUNT(*) FROM bookings FOR UPDATE; validate availability; optional voucher validation with FOR UPDATE + increment; INSERT pending_payment with total_price snapshot (discounted if voucher); audit log; COMMIT.
+func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTypeID int64, checkInStr, checkOutStr string, guests int, voucherCode string) (*model.Booking, error) {
 	if guests < 1 {
 		return nil, fmt.Errorf("guests must be >=1")
 	}
@@ -139,7 +143,55 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		return nil, fmt.Errorf("no available units for selected dates")
 	}
 
+	// Voucher handling (optional) — validate in same transaction with FOR UPDATE
+	var voucherID *int64
+	var discount float64
 	totalPrice := rt.Price * int64(nights)
+	trimmedCode := strings.TrimSpace(voucherCode)
+	if trimmedCode != "" {
+		// Ensure VoucherRepo is available (fallback to DB-backed repo if nil due to legacy init)
+		vr := s.VoucherRepo
+		if vr == nil {
+			vr = repo.NewVoucherRepo(s.DB)
+		}
+		v, err := vr.FindByCodeForUpdate(tx, trimmedCode)
+		if err != nil {
+			_ = tx.Rollback()
+			if err == sql.ErrNoRows {
+				return nil, fmt.Errorf("voucher not found")
+			}
+			return nil, err
+		}
+		// Validate expiry, quota, min_nights
+		now := time.Now()
+		if v.ExpiresAt != nil && now.After(*v.ExpiresAt) {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("voucher expired")
+		}
+		if v.Quota != nil && v.UsedCount >= *v.Quota {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("voucher quota exceeded")
+		}
+		if nights < v.MinNights {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("voucher requires minimum %d nights", v.MinNights)
+		}
+		discount = v.Discount
+		// Apply discount: price*nights*(100-discount)/100 with rounding
+		discounted := int64(math.Round(float64(totalPrice) * (100 - discount) / 100))
+		if discounted < 0 {
+			discounted = 0
+		}
+		totalPrice = discounted
+		// Increment used_count within same tx (FOR UPDATE lock ensures atomicity)
+		if err := vr.IncrementUsedCountTx(tx, v.ID); err != nil {
+			_ = tx.Rollback()
+			return nil, fmt.Errorf("failed to increment voucher: %w", err)
+		}
+		idCopy := v.ID
+		voucherID = &idCopy
+		slog.Info("voucher applied", "code", trimmedCode, "voucher_id", v.ID, "discount", discount, "nights", nights, "original_total", rt.Price*int64(nights), "discounted_total", totalPrice)
+	}
 
 	// Insert booking pending_payment
 	b := &model.Booking{
@@ -150,6 +202,7 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		Guests:     guests,
 		TotalPrice: totalPrice,
 		Status:     model.BookingPendingPayment,
+		VoucherID:  voucherID,
 	}
 	created, err := s.BookingRepo.CreateTx(tx, b)
 	if err != nil {
@@ -164,6 +217,9 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		"check_out":    checkOutStr,
 		"guests":       guests,
 		"total_price":  totalPrice,
+		"voucher_code": trimmedCode,
+		"voucher_id":   voucherID,
+		"discount":     discount,
 	})
 	_, err = tx.Exec(`INSERT INTO audit_logs (user_id, action, entity, entity_id, payload) VALUES ($1,$2,$3,$4,$5::jsonb)`,
 		userID, "booking.create", "bookings", created.ID, string(payload))
@@ -175,8 +231,13 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	slog.Info("booking created", "booking_id", created.ID, "user_id", userID, "room_type_id", roomTypeID, "nights", nights, "total_price", totalPrice)
+	slog.Info("booking created", "booking_id", created.ID, "user_id", userID, "room_type_id", roomTypeID, "nights", nights, "total_price", totalPrice, "voucher_code", trimmedCode)
 	return created, nil
+}
+
+// CreateBookingLegacy is a compatibility shim for callers not passing voucherCode (deprecated, prefer CreateBooking with voucherCode).
+func (s *AvailabilityService) CreateBookingLegacy(ctx context.Context, userID, roomTypeID int64, checkInStr, checkOutStr string, guests int) (*model.Booking, error) {
+	return s.CreateBooking(ctx, userID, roomTypeID, checkInStr, checkOutStr, guests, "")
 }
 // IsOverlapping reports whether [aStart, aEnd) overlaps [bStart, bEnd).
 // Overlap condition from SQL: aStart < bEnd && bStart < aEnd.

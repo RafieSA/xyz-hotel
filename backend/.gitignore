@@ -1,0 +1,6 @@
+# Uploads (private, jangan commit bukti transfer)
+storage/uploads/*
+!storage/uploads/.gitkeep
+!storage/uploads/bookings
+storage/uploads/bookings/*
+!storage/uploads/bookings/.gitkeep

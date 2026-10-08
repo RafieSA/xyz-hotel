@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +19,6 @@ import (
 	"xyz-hotel/backend/internal/repo"
 	"xyz-hotel/backend/internal/service"
 )
-
 func main() {
 	_ = godotenv.Load()
 
@@ -72,8 +72,14 @@ func main() {
 		}()
 	}
 
+	// Ensure upload dir exists (private storage)
+	if err := os.MkdirAll(filepath.Join("storage", "uploads", "bookings"), 0755); err != nil {
+		slog.Error("failed to create upload dir", "err", err)
+	}
+
 	app := fiber.New(fiber.Config{
-		AppName: "xyz-hotel",
+		AppName:   "xyz-hotel",
+		BodyLimit: 6 * 1024 * 1024, // 6MB (proof limit 5MB + overhead)
 	})
 
 	app.Use(cors.New(cors.Config{
@@ -89,10 +95,12 @@ func main() {
 
 	var bookingHandler *handler.BookingHandler
 	var authHandler *handler.AuthHandler
+	var voucherHandler *handler.VoucherHandler
 	if db != nil {
 		userRepo := repo.NewUserRepo(db)
 		roomRepo := repo.NewRoomRepo(db)
 		bookingRepo := repo.NewBookingRepo(db)
+		voucherRepo := repo.NewVoucherRepo(db)
 		_ = roomRepo
 		authSvc := service.NewAuthService(userRepo, jwtSecret)
 		authHandler = handler.NewAuthHandler(authSvc)
@@ -104,7 +112,13 @@ func main() {
 		if availSvc.RoomRepo == nil {
 			availSvc.RoomRepo = roomRepo
 		}
-		bookingHandler = handler.NewBookingHandler(availSvc, bookingRepo)
+		if availSvc.VoucherRepo == nil {
+			availSvc.VoucherRepo = voucherRepo
+		}
+		voucherSvc := service.NewVoucherService(voucherRepo, roomRepo)
+		voucherHandler = handler.NewVoucherHandler(voucherSvc)
+		opsSvc := service.NewBookingOpsService(db, bookingRepo, roomRepo)
+		bookingHandler = handler.NewBookingHandlerWithOps(availSvc, bookingRepo, opsSvc)
 	}
 
 	// Public auth routes
@@ -116,7 +130,7 @@ func main() {
 		auth.Get("/me", middleware.Auth(jwtSecret), authHandler.Me)
 	}
 
-	// Public availability
+	// Public availability + public voucher validation
 	if bookingHandler != nil {
 		app.Get("/api/availability", bookingHandler.GetAvailability)
 		app.Get("/api/room-types", func(c *fiber.Ctx) error {
@@ -127,6 +141,9 @@ func main() {
 			}
 			return c.JSON(fiber.Map{"data": list})
 		})
+		if voucherHandler != nil {
+			app.Get("/api/vouchers/validate", voucherHandler.ValidateVoucher)
+		}
 	} else {
 		app.Get("/api/availability", func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "db not connected"})
@@ -138,8 +155,10 @@ func main() {
 		bookings := app.Group("/api/bookings", middleware.Auth(jwtSecret))
 		bookings.Get("/", bookingHandler.ListBookings)
 		bookings.Post("/", bookingHandler.CreateBooking)
+		bookings.Post("/:id/proof", bookingHandler.UploadProof)
 		app.Get("/api/bookings", middleware.Auth(jwtSecret), bookingHandler.ListBookings)
 		app.Post("/api/bookings", middleware.Auth(jwtSecret), bookingHandler.CreateBooking)
+		app.Post("/api/bookings/:id/proof", middleware.Auth(jwtSecret), bookingHandler.UploadProof)
 	} else {
 		booking := app.Group("/api/bookings")
 		booking.Get("/", handler.ListBookingsStub)
@@ -153,6 +172,11 @@ func main() {
 			return c.JSON(fiber.Map{"message": "admin ok", "role": c.Locals("role")})
 		})
 		admin.Get("/bookings", bookingHandler.ListBookings)
+		admin.Patch("/bookings/:id/verify", bookingHandler.VerifyBooking)
+		if voucherHandler != nil {
+			admin.Get("/vouchers", voucherHandler.ListVouchers)
+			admin.Post("/vouchers", voucherHandler.CreateVoucher)
+		}
 		admin.Get("/rooms", func(c *fiber.Ctx) error {
 			rr := repo.NewRoomRepo(db)
 			types, err := rr.ListRoomTypes()
@@ -161,8 +185,20 @@ func main() {
 			}
 			return c.JSON(fiber.Map{"data": types})
 		})
+		// Ops: check-in/out + room unit status allowed for owner/manager/receptionist
+		ops := app.Group("/api/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist))
+		ops.Patch("/bookings/:id/checkin", bookingHandler.CheckIn)
+		ops.Patch("/bookings/:id/checkout", bookingHandler.CheckOut)
+		ops.Patch("/room-units/:id/status", bookingHandler.UpdateRoomUnitStatus)
+		ops.Get("/room-units", func(c *fiber.Ctx) error {
+			rr := repo.NewRoomRepo(db)
+			list, err := rr.ListAllUnits(c.Context())
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to list units"})
+			}
+			return c.JSON(fiber.Map{"data": list})
+		})
 	}
-
 	slog.Info("server starting", "port", port, "service", "xyz-hotel")
 	if err := app.Listen(":" + port); err != nil {
 		slog.Error("listen failed", "err", err)

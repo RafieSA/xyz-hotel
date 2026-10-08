@@ -5,6 +5,7 @@ import DatePicker from 'primevue/datepicker'
 import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves } from 'lucide-vue-next'
+import InputText from 'primevue/inputtext'
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
@@ -22,6 +23,10 @@ const availMap = ref({}) // { roomTypeId: {available, occupied, total_units} }
 const loadingAvail = ref(false)
 const bookingLoading = ref('')
 const availError = ref('')
+const voucherCode = ref('')
+const voucherValidating = ref(false)
+const voucherInfo = ref(null)
+const voucherError = ref('')
 
 const rooms = [
   { id: 1, type: 'Standard', price: 350000, cap: 2, facility: 'Smart TV · Breakfast', img: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=600&q=80&auto=format&fit=crop', rating: 4.6, icon: Bed },
@@ -104,12 +109,15 @@ async function onBooking(room) {
   }
   bookingLoading.value = room.type
   try {
-    const { data } = await client.post('/api/bookings', {
+    const payload = {
       room_type_id: room.id,
       check_in: ci,
       check_out: co,
       guests: guests.value,
-    })
+    }
+    if (voucherCode.value && voucherInfo.value) payload.voucher_code = voucherCode.value.trim()
+    else if (voucherCode.value) payload.voucher_code = voucherCode.value.trim()
+    const { data } = await client.post('/api/bookings', payload)
     const booking = data.data || data
     toast.add({ severity: 'success', summary: 'Booking berhasil', detail: `Booking #${booking.id || ''} pending payment — Rp ${fmt(booking.total_price || room.price)}`, life: 4000 })
     // refresh availability after booking
@@ -120,6 +128,54 @@ async function onBooking(room) {
   } finally {
     bookingLoading.value = ''
   }
+}
+
+async function validateVoucher() {
+  const code = voucherCode.value.trim()
+  if (!code) { voucherError.value='Masukkan kode voucher'; return }
+  if (!canSearch.value) { voucherError.value='Pilih tanggal dulu untuk validasi min_nights'; }
+  voucherValidating.value=true
+  voucherError.value=''
+  voucherInfo.value=null
+  try {
+    // Try GET /api/vouchers/validate?code=XXX
+    let res
+    try {
+      const ci = toISO(checkIn.value)
+      const co = toISO(checkOut.value)
+      const params = { code }
+      if (ci) params.check_in = ci
+      if (co) params.check_out = co
+      if (ci && co) {
+        const nights = Math.ceil((new Date(co)-new Date(ci))/(1000*60*60*24))
+        if (nights>0) params.nights = nights
+      }
+      res = await client.get('/api/vouchers/validate', { params })
+    } catch (e1) {
+      // fallback POST
+      res = await client.post('/api/vouchers/validate', { code, check_in: toISO(checkIn.value), check_out: toISO(checkOut.value) })
+    }
+    const payload = res.data.data || res.data
+    voucherInfo.value = payload
+    toast.add({ severity:'success', summary:'Voucher valid', detail:`Diskon ${payload.discount_percent || payload.discount || ''}%`, life:2500 })
+  } catch (e) {
+    const msg = e?.response?.data?.message || e.message || 'Voucher tidak valid'
+    voucherError.value = msg
+    toast.add({ severity:'error', summary:'Voucher gagal', detail:msg, life:3000 })
+  } finally { voucherValidating.value=false }
+}
+
+function discountedPrice(room) {
+  if (!voucherInfo.value) return room.price
+  const disc = voucherInfo.value.discount_percent ?? voucherInfo.value.discount ?? 0
+  return Math.round(room.price * (1 - disc/100))
+}
+function nightsCount() {
+  if (!checkIn.value || !checkOut.value) return 1
+  const ci = toISO(checkIn.value); const co = toISO(checkOut.value)
+  if (!ci || !co) return 1
+  const n = Math.ceil((new Date(co)-new Date(ci))/(1000*60*60*24))
+  return n>0? n:1
 }
 
 function availText(room) {
@@ -168,6 +224,21 @@ function availSeverity(room) {
           </div>
           <Button :label="loadingAvail ? 'Mencari...' : 'Cari Kamar'" :loading="loadingAvail" icon="pi pi-search" class="md:w-auto w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-8 !py-3 font-semibold whitespace-nowrap" @click="onSearch" />
         </div>
+        <!-- Voucher input -->
+        <div class="mt-4 bg-white rounded-2xl shadow p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end max-w-4xl mx-auto text-left">
+          <div class="flex-1">
+            <label class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Kode Voucher (opsional)</label>
+            <InputText v-model="voucherCode" placeholder="e.g. HEMAT20" class="w-full mt-1 !rounded-xl" />
+          </div>
+          <Button :label="voucherValidating ? 'Validasi...' : 'Validate'" :loading="voucherValidating" icon="pi pi-ticket" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-6 whitespace-nowrap" @click="validateVoucher" />
+          <div v-if="voucherInfo" class="flex flex-col justify-center text-left sm:text-right">
+            <span class="text-xs text-[#6B7280]">Diskon</span>
+            <span class="font-bold text-[#2E7D32] text-lg">{{ voucherInfo.discount_percent ?? voucherInfo.discount }}% OFF</span>
+            <span class="text-xs text-[#6B7280]">min {{ voucherInfo.min_nights }} malam · {{ nightsCount() }} malam dipilih</span>
+          </div>
+        </div>
+        <Message v-if="voucherError" severity="error" class="max-w-4xl mx-auto mt-2 text-left text-xs">{{ voucherError }}</Message>
+        <Message v-if="voucherInfo" severity="success" class="max-w-4xl mx-auto mt-2 text-left text-xs">Voucher {{ voucherCode }} aktif — harga kamar akan terdiskon {{ voucherInfo.discount_percent ?? voucherInfo.discount }}% saat booking.</Message>
         <Message v-if="availError" severity="error" class="max-w-4xl mx-auto mt-3 text-left">{{ availError }}</Message>
         <p class="mt-3 text-xs text-white/60">Free cancellation · Bayar di hotel · No hidden fee</p>
       </div>
@@ -197,7 +268,12 @@ function availSeverity(room) {
           <template #title><span class="text-[#1A3A4A] font-display font-semibold">{{ r.type }}</span></template>
           <template #subtitle><span class="text-xs text-[#6B7280] flex items-center gap-1.5"><Bed class="w-3.5 h-3.5" /> Kapasitas {{ r.cap }} orang · {{ r.facility }}</span></template>
           <template #content>
-            <p class="font-bold text-[#8B5A2B] text-lg leading-none">Rp {{ fmt(r.price) }} <span class="font-normal text-sm text-[#6B7280]">/ malam</span></p>
+            <div class="space-y-1">
+              <p class="font-bold text-[#8B5A2B] text-lg leading-none">Rp {{ fmt(r.price) }} <span class="font-normal text-sm text-[#6B7280]">/ malam</span></p>
+              <p v-if="voucherInfo" class="text-sm font-semibold text-[#2E7D32]">→ Rp {{ fmt(discountedPrice(r)) }} / malam <span class="text-xs font-normal text-[#6B7280]">· diskon {{ voucherInfo.discount_percent ?? voucherInfo.discount }}%</span></p>
+              <p v-if="voucherInfo && canSearch" class="text-xs text-[#6B7280]">Total {{ nightsCount() }} malam: <span class="font-semibold text-[#1A3A4A]">Rp {{ fmt(discountedPrice(r) * nightsCount()) }}</span> <span class="line-through text-[#9CA3AF]">Rp {{ fmt(r.price * nightsCount()) }}</span></p>
+              <p v-else-if="canSearch" class="text-xs text-[#6B7280]">Total {{ nightsCount() }} malam: Rp {{ fmt(r.price * nightsCount()) }}</p>
+            </div>
             <div v-if="availMap[r.id]" class="mt-2">
               <Tag :value="availText(r)" :severity="availSeverity(r)" rounded class="text-xs" />
               <p class="text-xs text-[#6B7280] mt-1">Occupied: {{ availMap[r.id].occupied }} · Available: {{ availMap[r.id].available }}</p>
