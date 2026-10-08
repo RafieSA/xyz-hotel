@@ -3,10 +3,11 @@ import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
 import Tag from 'primevue/tag'
-import Message from 'primevue/message'
+import Rating from 'primevue/rating'
+import Textarea from 'primevue/textarea'
+import Select from 'primevue/select'
 import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves } from 'lucide-vue-next'
-import InputText from 'primevue/inputtext'
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import client from '../api/client'
@@ -190,6 +191,58 @@ function availSeverity(room) {
   if (a.available <= 2) return 'warn'
   return 'success'
 }
+// Reviews
+const roomTypesApi = ref([])
+const reviewsByType = ref({})
+const myBookings = ref([])
+const reviewForm = ref({ booking_id: null, rating: 0, comment: '' })
+const submittingReview = ref(false)
+async function fetchRoomTypes(){
+  try{
+    const { data } = await client.get('/api/room-types')
+    const list = data.data || data
+    roomTypesApi.value = Array.isArray(list)? list : []
+  }catch{ roomTypesApi.value=[] }
+}
+async function fetchReviews(){
+  try{
+    const { data } = await client.get('/api/reviews')
+    const list = data.data || data
+    const arr = Array.isArray(list)? list : []
+    const map={}
+    arr.forEach(r=>{ const k=r.room_type_id||r.roomTypeId; if(k){ (map[k]=map[k]||[]).push(r) } })
+    reviewsByType.value = map
+  }catch{ reviewsByType.value={} }
+}
+async function fetchMyBookings(){
+  if(!auth.isAuthenticated) return
+  try{ const {data}=await client.get('/api/bookings'); const list=data.data||data; myBookings.value=Array.isArray(list)?list:[] }catch{}
+}
+function avgRating(roomId){
+  const api = roomTypesApi.value.find(r=> r.id===roomId)
+  if(api?.avg_rating != null) return Number(api.avg_rating)
+  if(api?.avgRating != null) return Number(api.avgRating)
+  const revs = reviewsByType.value[roomId]||[]
+  if(!revs.length) return rooms.find(r=>r.id===roomId)?.rating || 0
+  return (revs.reduce((s,r)=>s+Number(r.rating),0)/revs.length)
+}
+function ratingCount(roomId){ return (reviewsByType.value[roomId]||[]).length }
+const eligibleBookings = computed(()=>{
+  return myBookings.value.filter(b=> b.status==='checked_out')
+})
+async function submitReview(){
+  if(!reviewForm.value.booking_id) { toast.add({severity:'warn', summary:'Pilih booking', life:2000}); return }
+  if(!reviewForm.value.rating) { toast.add({severity:'warn', summary:'Beri rating', life:2000}); return }
+  submittingReview.value=true
+  try{
+    await client.post('/api/reviews', { booking_id: reviewForm.value.booking_id, rating: reviewForm.value.rating, comment: reviewForm.value.comment })
+    toast.add({severity:'success', summary:'Review terkirim', life:2500})
+    reviewForm.value={ booking_id:null, rating:0, comment:''}
+    await fetchReviews(); await fetchRoomTypes()
+  }catch(e){ toast.add({severity:'error', summary:'Gagal review', detail:e?.response?.data?.message||e.message, life:3500}) }
+  finally{ submittingReview.value=false }
+}
+onMounted(()=>{ fetchRoomTypes(); fetchReviews(); fetchMyBookings() })
 </script>
 
 <template>
@@ -261,12 +314,12 @@ function availSeverity(room) {
           <template #header>
             <div class="relative">
               <img :src="r.img" :alt="'Kamar ' + r.type" class="w-full aspect-[16/10] object-cover" />
-              <span class="absolute top-3 left-3 bg-white/95 backdrop-blur text-[#1A3A4A] text-xs font-bold rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm"><Star class="w-3.5 h-3.5 text-[#C9A86A] fill-[#C9A86A]" /> {{ r.rating }}</span>
+              <span class="absolute top-3 left-3 bg-white/95 backdrop-blur text-[#1A3A4A] text-xs font-bold rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm"><Star class="w-3.5 h-3.5 text-[#C9A86A] fill-[#C9A86A]" /> {{ avgRating(r.id).toFixed(1) }} <span v-if="ratingCount(r.id)" class="font-normal text-[#6B7280]">({{ ratingCount(r.id) }})</span></span>
               <span class="absolute top-3 right-3 bg-[#8B5A2B] text-white text-xs font-semibold rounded-full px-2.5 py-1">{{ r.type }}</span>
             </div>
           </template>
           <template #title><span class="text-[#1A3A4A] font-display font-semibold">{{ r.type }}</span></template>
-          <template #subtitle><span class="text-xs text-[#6B7280] flex items-center gap-1.5"><Bed class="w-3.5 h-3.5" /> Kapasitas {{ r.cap }} orang · {{ r.facility }}</span></template>
+          <template #subtitle><span class="text-xs text-[#6B7280] flex items-center gap-1.5"><Bed class="w-3.5 h-3.5" /> Kapasitas {{ r.cap }} orang · {{ r.facility }}</span><div class="mt-1"><Rating :modelValue="Math.round(avgRating(r.id))" readonly :stars="5" class="!gap-0.5" /></div></template>
           <template #content>
             <div class="space-y-1">
               <p class="font-bold text-[#8B5A2B] text-lg leading-none">Rp {{ fmt(r.price) }} <span class="font-normal text-sm text-[#6B7280]">/ malam</span></p>
@@ -288,6 +341,53 @@ function availSeverity(room) {
           </template>
         </Card>
       </div>
+    </section>
+
+    <!-- Reviews per type -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <h3 class="font-display font-bold text-xl text-[#1A3A4A]">Ulasan tamu</h3>
+      <p class="text-sm text-[#6B7280] mt-1">Rating rata-rata per tipe kamar — ulasan asli dari tamu checked-out.</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+        <Card v-for="r in rooms" :key="'rev-'+r.id" class="!rounded-xl !border !border-[#E5E7EB] !shadow-sm">
+          <template #title><span class="text-sm font-semibold text-[#1A3A4A]">{{ r.type }} · <span class="text-[#8B5A2B]">{{ avgRating(r.id).toFixed(1) }} <Star class="inline w-3 h-3 text-[#C9A86A] fill-[#C9A86A] -mt-0.5" /></span> <span class="text-xs text-[#6B7280]">({{ ratingCount(r.id) }} ulasan)</span></span></template>
+          <template #content>
+            <div v-if="(reviewsByType[r.id]||[]).length" class="space-y-3">
+              <div v-for="rev in (reviewsByType[r.id]||[]).slice(0,3)" :key="rev.id" class="border-b border-[#F3F4F6] pb-2 last:border-0">
+                <Rating :modelValue="rev.rating" readonly :stars="5" />
+                <p class="text-sm text-[#1A3A4A] mt-1">{{ rev.comment || '—' }}</p>
+                <p class="text-xs text-[#9CA3AF]">{{ rev.created_at ? new Date(rev.created_at).toLocaleDateString('id-ID') : '' }}</p>
+              </div>
+            </div>
+            <p v-else class="text-xs text-[#9CA3AF]">Belum ada ulasan untuk tipe ini.</p>
+          </template>
+        </Card>
+      </div>
+      <!-- Review form -->
+      <Card v-if="auth.isAuthenticated" class="mt-6 !rounded-xl !border !border-[#E5E7EB] !shadow-sm max-w-2xl">
+        <template #title><span class="text-base font-semibold text-[#1A3A4A]">Tulis ulasan</span></template>
+        <template #subtitle><span class="text-xs text-[#6B7280]">Hanya untuk booking checked-out yang belum di-review.</span></template>
+        <template #content>
+          <div class="space-y-3">
+            <div>
+              <label class="text-xs font-semibold text-[#6B7280] uppercase">Booking</label>
+              <Select v-model="reviewForm.booking_id" :options="eligibleBookings" optionLabel="id" optionValue="id" placeholder="Pilih booking checked-out" class="w-full mt-1" :emptyMessage="'Tidak ada booking checked-out'">
+                <template #option="{ option }">#{{ option.id }} · Tipe {{ option.room_type_id }} · {{ option.check_in }} → {{ option.check_out }}</template>
+                <template #value="{ value }"><span v-if="value">#{{ value }}</span><span v-else class="text-[#9CA3AF]">Pilih booking</span></template>
+              </Select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-[#6B7280] uppercase">Rating</label>
+              <Rating v-model="reviewForm.rating" :stars="5" class="mt-1" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-[#6B7280] uppercase">Komentar</label>
+              <Textarea v-model="reviewForm.comment" rows="3" placeholder="Bagaimana pengalaman menginapmu?" class="w-full mt-1" autoResize />
+            </div>
+            <Button label="Kirim Review" icon="pi pi-send" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" :loading="submittingReview" @click="submitReview" />
+          </div>
+        </template>
+      </Card>
+      <p v-else class="text-sm text-[#6B7280] mt-4">Login untuk menulis ulasan setelah check-out.</p>
     </section>
 
     <section class="bg-[#FDF6EC] border-y border-[#E5E7EB]/60">

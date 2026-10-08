@@ -8,8 +8,12 @@ import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Select from 'primevue/select'
 import Message from 'primevue/message'
-import { LayoutDashboard, TrendingUp, CalendarDays, Eye } from 'lucide-vue-next'
-import { ref, onMounted, computed } from 'vue'
+import DatePicker from 'primevue/datepicker'
+import Chart from 'primevue/chart'
+import Rating from 'primevue/rating'
+import Textarea from 'primevue/textarea'
+import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import client from '../api/client'
 
@@ -23,12 +27,17 @@ const showDetail = ref(false)
 const showReject = ref(false)
 const rejectReason = ref('')
 const rejectId = ref(null)
-const unitStatusMap = ref({}) // unitId -> selected status
+const unitStatusMap = ref({})
+const reports = ref(null)
+const reportsLoading = ref(false)
+const dateRange = ref(null) // [Date, Date]
+const reviews = ref([])
 
 const statusSeverity = (s) => ({ verified: 'success', checked_in: 'info', pending_payment: 'warn', waiting_verification: 'warn', checked_out: 'secondary', cancelled: 'danger', rejected: 'danger', expired: 'danger' }[s] || 'secondary')
 const statusLabel = (s) => s?.replace('_', ' ') || s
-const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
+const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n||0)
 const fmtDate = (d) => { try { return new Date(d).toISOString().slice(0,10) } catch { return d } }
+function toISO(d){ if(!d) return ''; const dt=d instanceof Date?d:new Date(d); if(isNaN(dt)) return ''; return dt.toISOString().slice(0,10) }
 
 async function fetchBookings() {
   loading.value = true
@@ -37,7 +46,6 @@ async function fetchBookings() {
     const list = data.data || data
     bookings.value = Array.isArray(list) ? list : []
   } catch (e) {
-    // fallback to /api/bookings if admin route not allowed
     try {
       const { data } = await client.get('/api/bookings')
       const list = data.data || data
@@ -47,7 +55,6 @@ async function fetchBookings() {
     }
   } finally { loading.value = false }
 }
-
 async function fetchUnits() {
   try {
     const { data } = await client.get('/api/admin/room-units')
@@ -55,16 +62,37 @@ async function fetchUnits() {
     roomUnits.value = Array.isArray(list) ? list : []
   } catch {}
 }
+async function fetchReports(){
+  reportsLoading.value=true
+  try{
+    const params={}
+    if(dateRange.value && dateRange.value[0]) params.from = toISO(dateRange.value[0])
+    if(dateRange.value && dateRange.value[1]) params.to = toISO(dateRange.value[1])
+    const { data } = await client.get('/api/admin/reports/summary', { params })
+    reports.value = data.data || data
+  }catch(e){
+    // keep previous or fallback to computed from bookings
+    reports.value = null
+  }finally{ reportsLoading.value=false }
+}
+async function fetchReviews(){
+  try{
+    const { data } = await client.get('/api/reviews')
+    const list = data.data || data
+    reviews.value = Array.isArray(list)? list : []
+  }catch{ reviews.value=[] }
+}
 
-onMounted(()=>{ fetchBookings(); fetchUnits() })
+onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews() })
+watch(dateRange, fetchReports)
 
 async function doVerify(id, action) {
   if (action==='rejected') { rejectId.value=id; showReject.value=true; return }
   actionLoading.value = `verify-${id}`
   try {
-    const { data } = await client.patch(`/api/admin/bookings/${id}/verify`, { action })
+    await client.patch(`/api/admin/bookings/${id}/verify`, { action })
     toast.add({ severity: 'success', summary: 'Verified', detail: `Booking #${id} verified`, life: 2500 })
-    await fetchBookings()
+    await fetchBookings(); await fetchReports()
   } catch (e) { toast.add({ severity: 'error', summary: 'Verify gagal', detail: e?.response?.data?.message || e.message, life: 3500 }) }
   finally { actionLoading.value='' }
 }
@@ -75,17 +103,17 @@ async function confirmReject() {
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action:'rejected', reject_reason: rejectReason.value })
     toast.add({ severity:'success', summary:'Rejected', detail:`Booking #${id} rejected`, life:2500 })
-    showReject.value=false; rejectReason.value=''; await fetchBookings()
+    showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports()
   } catch(e){ toast.add({ severity:'error', summary:'Reject gagal', detail:e?.response?.data?.message||e.message, life:3500}) }
   finally{ actionLoading.value='' }
 }
 async function doCheckIn(id){
   actionLoading.value=`checkin-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Check-In berhasil', detail:`Booking #${id} checked_in (unit assigned)`, life:2500 }); await fetchBookings(); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Check-In gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Check-In berhasil', detail:`Booking #${id} checked_in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check-In gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 async function doCheckOut(id){
   actionLoading.value=`checkout-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Check-Out berhasil', detail:`Booking #${id} checked_out (unit dirty)`, life:2500 }); await fetchBookings(); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Check-Out gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Check-Out berhasil', detail:`Booking #${id} checked_out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check-Out gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 function openDetail(row){ selected.value=row; showDetail.value=true }
 
@@ -100,44 +128,164 @@ async function updateUnitStatus(unit){
   if(!newStatus) return
   try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Unit updated', detail:`${unit.code} → ${newStatus}`, life:2500 }); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Update gagal', detail:e?.response?.data?.message||e.message, life:3500}) }
 }
-
 const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn', maintenance:'danger' }[s]||'secondary')
+
+// derived stats with fallback
+const totalBookings = computed(()=> reports.value?.total_bookings ?? reports.value?.bookings_count ?? bookings.value.length)
+const totalRevenue = computed(()=> reports.value?.total_revenue ?? reports.value?.revenue ?? bookings.value.filter(b=>['verified','checked_in','checked_out'].includes(b.status)).reduce((s,b)=>s+Number(b.total_price||0),0))
+const occupancyRate = computed(()=>{
+  if(reports.value?.occupancy_rate != null) return reports.value.occupancy_rate
+  if(reports.value?.occupancyRate != null) return reports.value.occupancyRate
+  if(roomUnits.value.length) return Math.round(roomUnits.value.filter(u=>u.status==='occupied').length/roomUnits.value.length*100)
+  return 0
+})
+const availableUnits = computed(()=>{
+  if(reports.value?.available_units != null) return reports.value.available_units
+  return roomUnits.value.filter(u=>u.status==='available').length || (roomUnits.value.length - roomUnits.value.filter(u=>u.status==='occupied').length)
+})
+const bookingsByStatus = computed(()=> reports.value?.bookings_by_status || reports.value?.by_status || null)
+
+// Chart data
+const WA = { brown:'#8B5A2B', gold:'#C9A86A', navy:'#1A3A4A', cream:'#FDF6EC' }
+
+const revenueChartData = computed(()=>{
+  const perDay = reports.value?.revenue_per_day || reports.value?.revenuePerDay || null
+  if(perDay && Array.isArray(perDay) && perDay.length){
+    return {
+      labels: perDay.map(r=> r.date || r.day),
+      datasets:[{ label:'Revenue', data: perDay.map(r=> Number(r.revenue||r.total||0)), borderColor:WA.brown, backgroundColor:'rgba(139,90,43,0.15)', tension:0.35, fill:true, pointBackgroundColor:WA.brown }]
+    }
+  }
+  // fallback: last 7 days from bookings
+  const map={}
+  bookings.value.forEach(b=>{
+    const d=fmtDate(b.created_at || b.check_in)
+    map[d]=(map[d]||0)+Number(b.total_price||0)
+  })
+  const labels=Object.keys(map).sort().slice(-7)
+  return { labels: labels.length? labels: ['No data'], datasets:[{ label:'Revenue', data: labels.length? labels.map(l=>map[l]):[0], borderColor:WA.brown, backgroundColor:'rgba(139,90,43,0.15)', tension:0.35, fill:true, pointBackgroundColor:WA.brown }] }
+})
+const revenueChartOptions = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ callback:(v)=> 'Rp '+(v/1000)+'k' } } } }
+
+const barChartData = computed(()=>{
+  const byType = reports.value?.bookings_by_room_type || reports.value?.by_room_type
+  if(byType && Array.isArray(byType) && byType.length){
+    return { labels: byType.map(r=> r.room_type || r.name || r.type), datasets:[{ label:'Bookings', data: byType.map(r=> r.count||r.total||0), backgroundColor:[WA.brown, WA.gold, WA.navy, '#D4A76A'] }] }
+  }
+  const counts={}
+  bookings.value.forEach(b=>{ const k='Type '+(b.room_type_id||'?'); counts[k]=(counts[k]||0)+1 })
+  const labels=Object.keys(counts)
+  return { labels: labels.length? labels:['No data'], datasets:[{ label:'Bookings', data: labels.length? labels.map(l=>counts[l]):[0], backgroundColor:[WA.brown, WA.gold, WA.navy, '#D4A76A'] }] }
+})
+const barChartOptions = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+
+const doughnutData = computed(()=>{
+  const total=roomUnits.value.length || 10
+  const occupied=roomUnits.value.filter(u=>u.status==='occupied').length || Math.round(occupancyRate.value/100*total)
+  const available=Math.max(0, total-occupied)
+  return { labels:['Occupied','Available'], datasets:[{ data:[occupied, available], backgroundColor:[WA.brown, WA.gold], borderWidth:0 }] }
+})
+const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ usePointStyle:true, boxWidth:10 } } } }
 </script>
 
 <template>
   <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-    <div class="flex items-center gap-3">
-      <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5"><LayoutDashboard class="w-5 h-5" /></span>
-      <div>
-        <h1 class="font-display font-bold text-2xl text-[#1A3A4A]">Backoffice</h1>
-        <p class="text-sm text-[#6B7280]">Kelola booking, kamar, dan laporan.</p>
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div class="flex items-center gap-3">
+        <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5"><LayoutDashboard class="w-5 h-5" /></span>
+        <div>
+          <h1 class="font-display font-bold text-2xl text-[#1A3A4A]">Backoffice</h1>
+          <p class="text-sm text-[#6B7280]">Kelola booking, kamar, dan laporan.</p>
+        </div>
       </div>
-      <Button label="Refresh" icon="pi pi-refresh" outlined class="!rounded-xl !ml-auto !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading" @click="fetchBookings(); fetchUnits()" />
+      <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
+        <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter tanggal" showIcon class="min-w-[220px]" />
+        <Button label="Refresh" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports()" />
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <!-- 4 stats cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
         <template #content>
-          <p class="text-xs uppercase tracking-wide text-[#6B7280] font-semibold flex items-center gap-1.5"><CalendarDays class="w-4 h-4" /> Booking hari ini</p>
-          <p class="text-2xl font-bold text-[#1A3A4A] mt-1">{{ bookings.length }}</p>
-          <p class="text-xs text-[#2E7D32] mt-1 flex items-center gap-1"><TrendingUp class="w-3.5 h-3.5" /> live</p>
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Total Bookings</p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ totalBookings }}</p>
+              <p class="text-xs text-[#6B7280] mt-1">Semua status</p>
+            </div>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><CalendarDays class="w-5 h-5" /></span>
+          </div>
         </template>
       </Card>
-      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
         <template #content>
-          <p class="text-xs uppercase tracking-wide text-[#6B7280] font-semibold">Occupancy</p>
-          <p class="text-2xl font-bold text-[#1A3A4A] mt-1">{{ roomUnits.filter(u=>u.status==='occupied').length }} / {{ roomUnits.length }}</p>
-          <div class="mt-2 h-2 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#8B5A2B] rounded-full" :style="{ width: (roomUnits.length? (roomUnits.filter(u=>u.status==='occupied').length/roomUnits.length*100):0)+'%' }"></div></div>
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Revenue</p>
+              <p class="text-2xl font-bold text-[#8B5A2B] mt-1">{{ fmt(totalRevenue) }}</p>
+              <p class="text-xs text-[#6B7280] mt-1">Verified + checked</p>
+            </div>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Wallet class="w-5 h-5" /></span>
+          </div>
         </template>
       </Card>
-      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
         <template #content>
-          <p class="text-xs uppercase tracking-wide text-[#6B7280] font-semibold">Revenue (MTD)</p>
-          <p class="text-2xl font-bold text-[#8B5A2B] mt-1">Rp 42.500.000</p>
-          <p class="text-xs text-[#6B7280] mt-1">Chart placeholder — Chart.js nanti</p>
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Occupancy Rate</p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ occupancyRate }}%</p>
+              <div class="mt-2 h-1.5 w-24 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#8B5A2B] rounded-full" :style="{ width: occupancyRate+'%' }"></div></div>
+            </div>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><TrendingUp class="w-5 h-5" /></span>
+          </div>
+        </template>
+      </Card>
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
+        <template #content>
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Available Units</p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ availableUnits }} <span class="text-sm font-normal text-[#6B7280]">/ {{ roomUnits.length || '-' }}</span></p>
+              <p class="text-xs text-[#2E7D32] mt-1">Ready to book</p>
+            </div>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Bed class="w-5 h-5" /></span>
+          </div>
         </template>
       </Card>
     </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] lg:col-span-2">
+        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Revenue per Hari</span></template>
+        <template #content>
+          <div class="h-[260px]"><Chart type="line" :data="revenueChartData" :options="revenueChartOptions" /></div>
+        </template>
+      </Card>
+      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Occupancy vs Available</span></template>
+        <template #content>
+          <div class="h-[260px] flex items-center justify-center"><Chart type="doughnut" :data="doughnutData" :options="doughnutOptions" /></div>
+          <p class="text-center text-xs text-[#6B7280] mt-2">{{ occupancyRate }}% terisi · {{ 100-occupancyRate }}% tersedia</p>
+        </template>
+      </Card>
+    </div>
+    <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Bookings by Room Type</span></template>
+      <template #content>
+        <div class="h-[260px]"><Chart type="bar" :data="barChartData" :options="barChartOptions" /></div>
+      </template>
+    </Card>
+
+    <Card v-if="bookingsByStatus" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] bg-[#FDF6EC]/40">
+      <template #content>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span v-for="(v,k) in bookingsByStatus" :key="k" class="bg-white border border-[#E5E7EB] rounded-full px-3 py-1"><span class="font-semibold text-[#1A3A4A] capitalize">{{ k.replace('_',' ') }}</span> <span class="text-[#8B5A2B] font-bold">{{ v }}</span></span>
+        </div>
+      </template>
+    </Card>
 
     <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title><div class="flex items-center justify-between"><span class="text-[#1A3A4A] font-semibold text-base">Booking terbaru</span><span class="text-xs text-[#6B7280]">{{ bookings.length }} rows</span></div></template>
@@ -186,17 +334,14 @@ const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn',
       <template #title><span class="text-[#1A3A4A] font-semibold text-base">Room Units</span></template>
       <template #content>
         <DataTable :value="roomUnits" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll">
-          <Column field="id" header="ID" sortable style="width:70px" />
-          <Column field="code" header="Kode" sortable />
-          <Column field="room_type_id" header="Type" sortable style="width:80px" />
-          <Column field="status" header="Status">
-            <template #body="{ data }"><Tag :value="data.status" :severity="unitSeverity(data.status)" rounded class="capitalize" /></template>
-          </Column>
-          <Column header="Ubah Status" style="min-width:260px">
+          <Column field="code" header="Code" sortable />
+          <Column field="room_type_id" header="Type" sortable><template #body="{ data }">#{{ data.room_type_id }}</template></Column>
+          <Column field="status" header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="unitSeverity(data.status)" rounded /></template></Column>
+          <Column header="Ubah Status" style="min-width:280px">
             <template #body="{ data }">
               <div class="flex gap-2">
-                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Pilih status" class="w-36 !text-xs" size="small" />
-                <Button label="Set" size="small" class="!py-1 !px-3 !text-xs !bg-[#8B5A2B] !border-[#8B5A2B]" :disabled="!unitStatusMap[data.id]" @click="updateUnitStatus(data)" />
+                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Pilih" class="w-full !text-xs" />
+                <Button label="Save" size="small" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-full" @click="updateUnitStatus(data)" />
               </div>
             </template>
           </Column>
@@ -204,40 +349,38 @@ const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn',
       </template>
     </Card>
 
-    <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] bg-[#FDF6EC]/60">
+    <!-- Reviews -->
+    <Card v-if="reviews.length" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title><span class="text-[#1A3A4A] font-semibold text-base">Reviews ({{ reviews.length }})</span></template>
       <template #content>
-        <p class="text-sm font-semibold text-[#1A3A4A] flex items-center gap-2"><TrendingUp class="w-4 h-4 text-[#8B5A2B]" /> Chart placeholder</p>
-        <div class="mt-3 h-40 bg-white rounded-xl border border-dashed border-[#C9A86A]/40 flex items-center justify-center text-sm text-[#6B7280]">Occupancy & revenue chart (Chart.js) — Fase 2</div>
+        <DataTable :value="reviews" paginator :rows="5" stripedRows class="text-sm">
+          <Column field="id" header="ID" style="width:70px" />
+          <Column field="booking_id" header="Booking" style="width:90px" />
+          <Column field="rating" header="Rating" style="width:140px"><template #body="{ data }"><Rating :modelValue="data.rating" readonly :stars="5" /></template></Column>
+          <Column field="comment" header="Comment" />
+          <Column field="created_at" header="Date"><template #body="{ data }">{{ fmtDate(data.created_at) }}</template></Column>
+        </DataTable>
       </template>
     </Card>
 
-    <!-- Detail dialog with proof preview -->
     <Dialog v-model:visible="showDetail" modal header="Detail Booking" :style="{ width:'560px' }" class="!rounded-xl">
       <div v-if="selected" class="space-y-3 text-sm">
-        <p><span class="font-semibold">ID:</span> {{ selected.id }} · <Tag :value="statusLabel(selected.status)" :severity="statusSeverity(selected.status)" rounded /></p>
-        <p><span class="font-semibold">User:</span> {{ selected.user_id }} · Room Type #{{ selected.room_type_id }} <span v-if="selected.room_unit_id">→ Unit #{{ selected.room_unit_id }}</span></p>
-        <p><span class="font-semibold">Dates:</span> {{ fmtDate(selected.check_in) }} → {{ fmtDate(selected.check_out) }} · {{ selected.guests }} tamu</p>
-        <p><span class="font-semibold">Total:</span> <span class="text-[#8B5A2B] font-bold">{{ fmt(selected.total_price) }}</span></p>
-        <p v-if="selected.reject_reason"><span class="font-semibold">Reject reason:</span> {{ selected.reject_reason }}</p>
-        <div v-if="selected.proof_url" class="space-y-2">
-          <p class="font-semibold">Bukti pembayaran:</p>
-          <p class="text-xs text-[#6B7280] break-all">{{ selected.proof_url }}</p>
-          <img v-if="!selected.proof_url.endsWith('.pdf')" :src="`http://localhost:8080/storage/uploads/${selected.proof_url}`" alt="proof" class="w-full rounded-xl border max-h-80 object-contain bg-gray-50" @error="(e)=>e.target.style.display='none'" />
-          <div v-else class="border rounded-xl p-6 text-center text-sm text-[#6B7280]">PDF preview: <a :href="`http://localhost:8080/storage/uploads/${selected.proof_url}`" target="_blank" class="text-[#8B5A2B] underline">Buka PDF</a></div>
-        </div>
-        <Message v-else severity="info" class="text-xs">Belum ada bukti pembayaran.</Message>
+        <p><span class="font-semibold">ID:</span> {{ selected.id }} — {{ selected.status }}</p>
+        <p><span class="font-semibold">Total:</span> {{ fmt(selected.total_price) }}</p>
+        <p v-if="selected.proof_url" class="break-all"><span class="font-semibold">Proof:</span> <a :href="selected.proof_url" target="_blank" class="text-[#8B5A2B] underline">{{ selected.proof_url }}</a></p>
+        <img v-if="selected.proof_url && !selected.proof_url.endsWith('.pdf')" :src="selected.proof_url" alt="proof" class="max-h-64 rounded-lg border" />
       </div>
       <template #footer><Button label="Tutup" class="!rounded-xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
     </Dialog>
 
     <Dialog v-model:visible="showReject" modal header="Tolak Booking" :style="{ width:'420px' }">
       <div class="space-y-3">
-        <p class="text-sm text-[#6B7280]">Berikan alasan penolakan untuk booking #{{ rejectId }}</p>
-        <InputText v-model="rejectReason" placeholder="Alasan ditolak..." class="w-full" />
+        <p class="text-sm text-[#6B7280]">Alasan penolakan akan dikirim ke tamu.</p>
+        <InputText v-model="rejectReason" placeholder="Alasan reject" class="w-full" />
       </div>
       <template #footer>
         <Button label="Batal" text @click="showReject=false" />
-        <Button label="Tolak" severity="danger" :loading="actionLoading===`verify-${rejectId}`" @click="confirmReject" />
+        <Button label="Reject" severity="danger" :loading="actionLoading===`verify-${rejectId}`" @click="confirmReject" />
       </template>
     </Dialog>
   </div>

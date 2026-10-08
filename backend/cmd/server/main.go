@@ -96,6 +96,8 @@ func main() {
 	var bookingHandler *handler.BookingHandler
 	var authHandler *handler.AuthHandler
 	var voucherHandler *handler.VoucherHandler
+	var reviewHandler *handler.ReviewHandler
+	var reportHandler *handler.ReportHandler
 	if db != nil {
 		userRepo := repo.NewUserRepo(db)
 		roomRepo := repo.NewRoomRepo(db)
@@ -119,6 +121,11 @@ func main() {
 		voucherHandler = handler.NewVoucherHandler(voucherSvc)
 		opsSvc := service.NewBookingOpsService(db, bookingRepo, roomRepo)
 		bookingHandler = handler.NewBookingHandlerWithOps(availSvc, bookingRepo, opsSvc)
+		reviewRepo := repo.NewReviewRepo(db)
+		reviewSvc := service.NewReviewService(reviewRepo, bookingRepo, roomRepo)
+		reviewHandler = handler.NewReviewHandler(reviewSvc)
+		reportSvc := service.NewReportService(db)
+		reportHandler = handler.NewReportHandler(reportSvc)
 	}
 
 	// Public auth routes
@@ -130,17 +137,21 @@ func main() {
 		auth.Get("/me", middleware.Auth(jwtSecret), authHandler.Me)
 	}
 
-	// Public availability + public voucher validation
+	// Public availability + public voucher validation + reviews
 	if bookingHandler != nil {
 		app.Get("/api/availability", bookingHandler.GetAvailability)
 		app.Get("/api/room-types", func(c *fiber.Ctx) error {
 			rr := repo.NewRoomRepo(db)
-			list, err := rr.ListRoomTypes()
+			list, err := rr.ListRoomTypesWithRating()
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed"})
 			}
 			return c.JSON(fiber.Map{"data": list})
 		})
+		if reviewHandler != nil {
+			app.Get("/api/reviews", reviewHandler.ListReviews)
+			app.Post("/api/reviews", middleware.Auth(jwtSecret), reviewHandler.CreateReview)
+		}
 		if voucherHandler != nil {
 			app.Get("/api/vouchers/validate", voucherHandler.ValidateVoucher)
 		}
@@ -176,6 +187,11 @@ func main() {
 		if voucherHandler != nil {
 			admin.Get("/vouchers", voucherHandler.ListVouchers)
 			admin.Post("/vouchers", voucherHandler.CreateVoucher)
+		}
+		if reportHandler != nil {
+			admin.Get("/reports/summary", reportHandler.GetSummary)
+			admin.Get("/reports/revenue", reportHandler.GetRevenue)
+			admin.Get("/reports/occupancy", reportHandler.GetOccupancy)
 		}
 		admin.Get("/rooms", func(c *fiber.Ctx) error {
 			rr := repo.NewRoomRepo(db)
