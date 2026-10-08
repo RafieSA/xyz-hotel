@@ -2,11 +2,38 @@
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
+import Message from 'primevue/message'
 import { LogIn } from 'lucide-vue-next'
 import { ref } from 'vue'
+import { useRouter, RouterLink } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useToast } from 'primevue/usetoast'
 
 const email = ref('')
 const password = ref('')
+const error = ref('')
+const loading = ref(false)
+const router = useRouter()
+const auth = useAuthStore()
+const toast = useToast()
+
+async function onLogin() {
+  error.value = ''
+  if (!email.value || !password.value) {
+    error.value = 'Email dan password wajib diisi'
+    return
+  }
+  loading.value = true
+  try {
+    await auth.loginRequest(email.value, password.value)
+    toast.add({ severity: 'success', summary: 'Berhasil', detail: 'Login sukses', life: 2500 })
+    router.push('/')
+  } catch (e) {
+    error.value = e?.response?.data?.message || e.message || 'Login gagal'
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <template>
@@ -16,10 +43,11 @@ const password = ref('')
       <template #subtitle><span class="text-sm text-[#6B7280]">Karyawan & admin xyz-hotel</span></template>
       <template #content>
         <div class="space-y-4 mt-2">
-          <div><label class="text-sm font-medium text-[#1F2937]">Email *</label><InputText v-model="email" placeholder="nama@xyz-hotel.id" class="w-full mt-1" /></div>
-          <div><label class="text-sm font-medium text-[#1F2937]">Password *</label><InputText v-model="password" type="password" placeholder="••••••••" class="w-full mt-1" /></div>
-          <Button label="Masuk" class="w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !py-3 font-semibold" />
-          <p class="text-xs text-center text-[#6B7280]">Belum punya akun? Hubungi owner.</p>
+          <Message v-if="error" severity="error" class="text-sm">{{ error }}</Message>
+          <div><label class="text-sm font-medium text-[#1F2937]">Email *</label><InputText v-model="email" placeholder="nama@xyz-hotel.id" class="w-full mt-1" @keyup.enter="onLogin" /></div>
+          <div><label class="text-sm font-medium text-[#1F2937]">Password *</label><InputText v-model="password" type="password" placeholder="••••••••" class="w-full mt-1" @keyup.enter="onLogin" /></div>
+          <Button :label="loading ? 'Memproses...' : 'Masuk'" :loading="loading" class="w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !py-3 font-semibold" @click="onLogin" />
+          <p class="text-xs text-center text-[#6B7280]">Belum punya akun? <RouterLink to="/register" class="text-[#8B5A2B] font-semibold hover:underline">Daftar</RouterLink></p>
         </div>
       </template>
     </Card>

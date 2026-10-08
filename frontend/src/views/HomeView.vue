@@ -2,21 +2,138 @@
 import Card from 'primevue/card'
 import Button from 'primevue/button'
 import DatePicker from 'primevue/datepicker'
+import Tag from 'primevue/tag'
+import Message from 'primevue/message'
 import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves } from 'lucide-vue-next'
-import { ref } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
+import client from '../api/client'
+import { useAuthStore } from '../stores/auth'
+
+const router = useRouter()
+const toast = useToast()
+const auth = useAuthStore()
 
 const checkIn = ref(null)
 const checkOut = ref(null)
 const guests = ref(2)
+const availMap = ref({}) // { roomTypeId: {available, occupied, total_units} }
+const loadingAvail = ref(false)
+const bookingLoading = ref('')
+const availError = ref('')
 
 const rooms = [
-  { type: 'Standard', price: 350000, cap: 2, facility: 'Smart TV · Breakfast', img: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=600&q=80&auto=format&fit=crop', rating: 4.6, icon: Bed },
-  { type: 'Deluxe', price: 550000, cap: 2, facility: 'Balkon · Mini fridge', img: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=600&q=80&auto=format&fit=crop', rating: 4.8, icon: Coffee },
-  { type: 'Family', price: 850000, cap: 4, facility: '2 Bedroom · Kitchen', img: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&q=80&auto=format&fit=crop', rating: 4.9, icon: Users },
-  { type: 'Suite', price: 1250000, cap: 3, facility: 'Living room · Bathtub', img: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=600&q=80&auto=format&fit=crop', rating: 5.0, icon: Waves },
+  { id: 1, type: 'Standard', price: 350000, cap: 2, facility: 'Smart TV · Breakfast', img: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=600&q=80&auto=format&fit=crop', rating: 4.6, icon: Bed },
+  { id: 2, type: 'Deluxe', price: 550000, cap: 2, facility: 'Balkon · Mini fridge', img: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=600&q=80&auto=format&fit=crop', rating: 4.8, icon: Coffee },
+  { id: 3, type: 'Family', price: 850000, cap: 4, facility: '2 Bedroom · Kitchen', img: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600&q=80&auto=format&fit=crop', rating: 4.9, icon: Users },
+  { id: 4, type: 'Suite', price: 1250000, cap: 3, facility: 'Living room · Bathtub', img: 'https://images.unsplash.com/photo-1578683010236-d716f9a3f461?w=600&q=80&auto=format&fit=crop', rating: 5.0, icon: Waves },
 ]
 
 const fmt = (n) => new Intl.NumberFormat('id-ID').format(n)
+
+function toISO(d) {
+  if (!d) return ''
+  const dt = d instanceof Date ? d : new Date(d)
+  if (isNaN(dt)) return ''
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, '0')
+  const day = String(dt.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const canSearch = computed(() => checkIn.value && checkOut.value && toISO(checkIn.value) && toISO(checkOut.value))
+
+async function fetchAvailability() {
+  if (!canSearch.value) {
+    availMap.value = {}
+    availError.value = ''
+    return
+  }
+  const ci = toISO(checkIn.value)
+  const co = toISO(checkOut.value)
+  if (ci >= co) {
+    availError.value = 'Check-out harus setelah check-in'
+    return
+  }
+  availError.value = ''
+  loadingAvail.value = true
+  try {
+    const results = await Promise.all(rooms.map(async (r) => {
+      try {
+        const { data } = await client.get('/api/availability', { params: { room_type_id: r.id, check_in: ci, check_out: co } })
+        const payload = data.data || data
+        return [r.id, payload]
+      } catch (e) {
+        return [r.id, null]
+      }
+    }))
+    const m = {}
+    results.forEach(([id, payload]) => { if (payload) m[id] = payload })
+    availMap.value = m
+  } finally {
+    loadingAvail.value = false
+  }
+}
+
+watch([checkIn, checkOut], fetchAvailability)
+
+async function onSearch() {
+  await fetchAvailability()
+  if (Object.keys(availMap.value).length) {
+    toast.add({ severity: 'info', summary: 'Ketersediaan diperbarui', detail: `${Object.keys(availMap.value).length} tipe diperiksa`, life: 2000 })
+  }
+}
+
+async function onBooking(room) {
+  if (!canSearch.value) {
+    toast.add({ severity: 'warn', summary: 'Pilih tanggal', detail: 'Pilih check-in & check-out dulu', life: 2500 })
+    return
+  }
+  if (!auth.isAuthenticated) {
+    toast.add({ severity: 'warn', summary: 'Login diperlukan', detail: 'Silakan login dulu untuk booking', life: 2500 })
+    router.push('/login')
+    return
+  }
+  const ci = toISO(checkIn.value)
+  const co = toISO(checkOut.value)
+  const avail = availMap.value[room.id]
+  if (avail && avail.available <= 0) {
+    toast.add({ severity: 'error', summary: 'Penuh', detail: `${room.type} penuh di tanggal tersebut`, life: 2500 })
+    return
+  }
+  bookingLoading.value = room.type
+  try {
+    const { data } = await client.post('/api/bookings', {
+      room_type_id: room.id,
+      check_in: ci,
+      check_out: co,
+      guests: guests.value,
+    })
+    const booking = data.data || data
+    toast.add({ severity: 'success', summary: 'Booking berhasil', detail: `Booking #${booking.id || ''} pending payment — Rp ${fmt(booking.total_price || room.price)}`, life: 4000 })
+    // refresh availability after booking
+    await fetchAvailability()
+  } catch (e) {
+    const msg = e?.response?.data?.message || e.message || 'Booking gagal'
+    toast.add({ severity: 'error', summary: 'Gagal booking', detail: msg, life: 3500 })
+  } finally {
+    bookingLoading.value = ''
+  }
+}
+
+function availText(room) {
+  const a = availMap.value[room.id]
+  if (!a) return ''
+  return `${a.available} tersedia / ${a.total_units} unit`
+}
+function availSeverity(room) {
+  const a = availMap.value[room.id]
+  if (!a) return 'secondary'
+  if (a.available <= 0) return 'danger'
+  if (a.available <= 2) return 'warn'
+  return 'success'
+}
 </script>
 
 <template>
@@ -49,8 +166,9 @@ const fmt = (n) => new Intl.NumberFormat('id-ID').format(n)
               <option :value="4">4 Tamu</option>
             </select>
           </div>
-          <Button label="Cari Kamar" icon="pi pi-search" class="md:w-auto w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-8 !py-3 font-semibold whitespace-nowrap" />
+          <Button :label="loadingAvail ? 'Mencari...' : 'Cari Kamar'" :loading="loadingAvail" icon="pi pi-search" class="md:w-auto w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-8 !py-3 font-semibold whitespace-nowrap" @click="onSearch" />
         </div>
+        <Message v-if="availError" severity="error" class="max-w-4xl mx-auto mt-3 text-left">{{ availError }}</Message>
         <p class="mt-3 text-xs text-white/60">Free cancellation · Bayar di hotel · No hidden fee</p>
       </div>
     </section>
@@ -65,6 +183,8 @@ const fmt = (n) => new Intl.NumberFormat('id-ID').format(n)
         <span class="hidden md:inline-flex items-center gap-1.5 text-xs bg-[#FDF6EC] text-[#8B5A2B] border border-[#8B5A2B]/20 rounded-full px-3 py-1.5 font-semibold"><Wifi class="w-3.5 h-3.5" /> Free Wi-Fi · Breakfast</span>
       </div>
 
+      <div v-if="canSearch && loadingAvail" class="mt-6 text-center text-sm text-[#6B7280]">Memeriksa ketersediaan...</div>
+
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
         <Card v-for="r in rooms" :key="r.type" class="overflow-hidden !rounded-xl !shadow-sm hover:!shadow-md hover:-translate-y-0.5 transition-all duration-200 !border !border-[#E5E7EB]">
           <template #header>
@@ -78,11 +198,16 @@ const fmt = (n) => new Intl.NumberFormat('id-ID').format(n)
           <template #subtitle><span class="text-xs text-[#6B7280] flex items-center gap-1.5"><Bed class="w-3.5 h-3.5" /> Kapasitas {{ r.cap }} orang · {{ r.facility }}</span></template>
           <template #content>
             <p class="font-bold text-[#8B5A2B] text-lg leading-none">Rp {{ fmt(r.price) }} <span class="font-normal text-sm text-[#6B7280]">/ malam</span></p>
+            <div v-if="availMap[r.id]" class="mt-2">
+              <Tag :value="availText(r)" :severity="availSeverity(r)" rounded class="text-xs" />
+              <p class="text-xs text-[#6B7280] mt-1">Occupied: {{ availMap[r.id].occupied }} · Available: {{ availMap[r.id].available }}</p>
+            </div>
+            <p v-else-if="canSearch" class="text-xs text-[#9CA3AF] mt-2">Pilih tanggal untuk cek ketersediaan</p>
           </template>
           <template #footer>
             <div class="flex gap-2 pt-1">
               <Button label="Lihat Detail" outlined class="!rounded-xl !text-[#8B5A2B] !border-[#8B5A2B] flex-1 !py-2 text-sm" />
-              <Button label="Booking" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl flex-1 !py-2 text-sm font-semibold" />
+              <Button :label="bookingLoading === r.type ? 'Booking...' : 'Booking'" :loading="bookingLoading === r.type" :disabled="availMap[r.id] && availMap[r.id].available <= 0" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl flex-1 !py-2 text-sm font-semibold disabled:!bg-gray-300 disabled:!border-gray-300" @click="onBooking(r)" />
             </div>
           </template>
         </Card>
@@ -91,10 +216,8 @@ const fmt = (n) => new Intl.NumberFormat('id-ID').format(n)
 
     <section class="bg-[#FDF6EC] border-y border-[#E5E7EB]/60">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row gap-6 justify-between text-sm">
-        <span class="flex items-center gap-2 text-[#1A3A4A]"><span class="w-8 h-8 rounded-full bg-white border flex items-center justify-center"><Waves class="w-4 h-4 text-[#8B5A2B]" /></span> Kolam renang & spa</span>
-        <span class="flex items-center gap-2 text-[#1A3A4A]"><span class="w-8 h-8 rounded-full bg-white border flex items-center justify-center"><Coffee class="w-4 h-4 text-[#8B5A2B]" /></span> Restaurant & café</span>
-        <span class="flex items-center gap-2 text-[#1A3A4A]"><span class="w-8 h-8 rounded-full bg-white border flex items-center justify-center"><Users class="w-4 h-4 text-[#8B5A2B]" /></span> Family friendly</span>
-        <span class="flex items-center gap-2 text-[#1A3A4A]"><span class="w-8 h-8 rounded-full bg-white border flex items-center justify-center"><MapPin class="w-4 h-4 text-[#8B5A2B]" /></span> 5 menit ke Monkey Forest</span>
+        <p class="text-[#1A3A4A] font-semibold">Butuh bantuan? <span class="font-normal text-[#6B7280]">WA 0812-3456-7890 · check-in 14:00, check-out 12:00 · 1 booking = 1 tipe kamar</span></p>
+        <p class="text-[#6B7280]">Harga snapshot saat booking · Voucher opsional</p>
       </div>
     </section>
   </div>
