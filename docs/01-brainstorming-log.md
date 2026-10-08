@@ -5,12 +5,19 @@
 ## Ringkasan Sesi
 
 | Waktu | Aktor | Isi Penting |
-|-------|-------|-------------|
 | 2026-10-08 | Rafie | Mau bikin aplikasi booking hotel website: frontoffice (pelanggan) + backoffice (manajemen). Nama project `xyz-hotel` di `/Users/rafiesafarazaribowo/Projects`. Minta interaktif satu-satu, super presisi, bahasa Indonesia membumi, visual, contoh, tradeoff, edge cases, no shortcut/happy-path, perhatikan security, clean code, SOLID, dll. Tanya lebih detail dan mendalam. |
-| 2026-10-08 | Agent | Audit faktual dulu: cek folder Projects ADA, xyz-hotel BELUM ADA (aman), posisi di /tmp, Node 26, Bun 1.4, PHP 8.2, Postgres 18.4, MySQL 9.6, Git 2.53, Docker TIDAK ADA. Pola referensi `xyz-haircut` = Dart Frog + Flutter monorepo. Tanya 6 pertanyaan: Q1 stack, Q2 level fitur, Q3 role, Q4 pembayaran, Q5 tipe kamar, Q6 availability. Kasih tradeoff tabel + DoD + skill mapping. |
-| 2026-10-08 | Rafie | Jawab: Fase 0 banget, belum tau stack/flow, mau grill + dokumentasi ke 5+ file .md, pakai MB Air M4, local dulu, satu hotel, Q1 BIG NO Next.js, Q2 level lengkap, Q3 4 role, Q4 manual transfer, Q5 bebas kreatif (portfolio pribadi, no deadline/bos/client), Q6 perlu availability, nanti bikin repo GitHub. |
-| 2026-10-08 | Agent | Eksekusi Fase 0: buat folder + git init (branch main), tulis AGENTS.md, README, .gitignore, dan 6 file docs. Grill Q1 tanpa Next.js. |
-
+| 2026-10-08 | Agent | Audit faktual dulu: cek folder Projects ADA, xyz-hotel BELUM ADA (aman), posisi di /tmp, Node 26, Bun 1.4, PHP 8.2, Go 1.26.3, Postgres 18.4, MySQL 9.6, Git 2.53, Docker TIDAK ADA. Pola referensi `xyz-haircut` = Dart Frog + Flutter monorepo. Tanya 6 pertanyaan: Q1 stack, Q2 level fitur, Q3 role, Q4 pembayaran, Q5 tipe kamar, Q6 availability. Kasih tradeoff tabel + DoD + skill mapping. |
+| 2026-10-08 | Rafie | Jawab: Fase 0 banget, belum tau stack/flow, mau grill + dokumentasi ke 5+ file .md, pakai MB Air M4, local dulu, satu hotel, Q1 BIG NO Next.js, Q2 level lengkap, Q3 4 role, Q4 manual transfer, Q5 bebas kreatif (portfolio pribadi, no deadline/bos/client), Q6 perlu availability, nanti bikin repo GitHub, minta design.md. |
+| 2026-10-08 | Agent + Rafie | Grill iteratif: Q1 awal rekomendasi Next.js ditolak, grill ulang tanpa Next.js (Laravel, Nuxt, SvelteKit), Rafie tanya "Backend Golang bisa?" → cek `go1.26.3` ada → diskusi Go tradeoffs → lock **Go + Vue**. Q3 setuju 4 role, Q6 expired 12 jam (bukan 2 jam), Q5 setuju 4 tipe kamar 18 unit seed, tambah `07-design.md` palette `#8B5A2B`. |
+| 2026-10-08 | Rafie | Tanya dependencies: icon? styling? UI library shadcn? Bosan shadcn, minta deep dive internet. |
+| 2026-10-08 | Agent | Deep dive web_search: UnoCSS 200x, DaisyUI, Panda CSS, PrimeVue, Nuxt UI, Vuetify, Naive UI, Element Plus. Sajikan 5 opsi Tailwind alternative + 5 UI alternative visual. |
+| 2026-10-08 | Rafie | "Gua butuh yang BAGUS DIMATA, prioritas #1 cantik profesional, visual dominant" |
+| 2026-10-08 | Agent | Rekomendasi visual: Warm Luxury Resort PrimeVue Aura paling cantik untuk hotel, kasih 3 arah visual + URL preview. |
+| 2026-10-08 | Rafie | Minta URL preview copas browser. |
+| 2026-10-08 | Agent | Kasih 12 URL: primevue.org, ui.nuxt.com, naiveui, vuetify, lucide, unocss playground dll. |
+| 2026-10-08 | Rafie | "Rekomendasi Anda? Best choice?" |
+| 2026-10-08 | Agent | Best choice: **Tailwind + PrimeVue Aura + Lucide** — paling cantik memanjakan mata untuk hotel warm `#8B5A2B`. |
+| 2026-10-08 | Rafie | **"setuju! dokumentasikan!"** → lock di `08-dependencies.md` |
 ## Keputusan yang Sudah Lock (Jangan Diutak-atik Tanpa Diskusi)
 1. **Satu hotel** — bukan multi-hotel di v1.
 2. **Level lengkap** — tapi implementasi bertahap, tidak langsung semua.
