@@ -1,0 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+vendor/
+.dart_tool/
+.build/
+
+# Build
+dist/
+build/
+.next/
+.nuxt/
+.output/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Uploads (jangan commit bukti transfer asli)
+uploads/
+storage/app/public/uploads/
+
+# DB
+*.sqlite
+*.db
