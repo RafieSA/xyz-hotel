@@ -38,7 +38,7 @@ Customer                Frontend                Backend (DB Transaction)        
 ```
 pending_payment → waiting_verification → verified → checked_in → checked_out
        │                    │               │
-       ├─ expired (2 jam)   └─ rejected ────┘
+       ├─ expired (12 jam)  └─ rejected ────┘
        └─ cancelled (oleh customer sebelum verifikasi)
 ```
 
@@ -65,7 +65,7 @@ WHERE room_type_id = :type
 | # | Edge Case | Contoh | Handling |
 |---|-----------|--------|----------|
 | 1 | **Race condition** — 2 orang booking detik yang sama | Jam 10:00:00, Ani & Budi booking Deluxe tgl sama, sisa 1 slot | Pakai `DB::transaction()` + `SELECT ... FOR UPDATE` / unique constraint. Satu berhasil, satu gagal dengan pesan jelas. |
-| 2 | **Booking expired** | Ani booking tapi tidak upload bukti 2 jam | Cron/job tiap menit: `pending_payment` & `created_at < now-2h` → `expired`. Slot kembali kosong. |
+| 2 | **Booking expired** | Ani booking tapi tidak upload bukti 12 jam | Cron/job tiap menit: `pending_payment` & `created_at < now-12h` → `expired`. Slot kembali kosong. |
 | 3 | **Upload bukti palsu / salah** | Upload foto kosong, atau nominal kurang | Admin reject + alasan, status `rejected`, customer bisa upload ulang (max 3x) atau booking `cancelled`. |
 | 4 | **Check-in tanpa verifikasi** | Resepsionis iseng check-in booking pending | Ditolak — hanya `verified` bisa `checked_in`. Validasi di backend, jangan di frontend saja. |
 | 5 | **Check-out terlambat** | Tamu check-out jam 14:00 (lewat 12:00) | Status tetap `checked_in`, denda hitung manual di backoffice (catat di laporan). |
@@ -107,11 +107,8 @@ DB::transaction(function () use ($data) {
 - **Logging:** Setiap perubahan status log: `booking_id, from, to, by, at, reason`.
 - **Error handling:** Jangan `try-catch` kosong — log ke `storage/logs/laravel.log` + return pesan user-friendly.
 
-## Pertanyaan Grill untuk Kamu
-1. **Expired berapa jam?** Rekomendasi: **2 jam** untuk `pending_payment` (contoh Traveloka). Setuju?
-2. **Check-in/out jam berapa?** Rekomendasi: **14:00 / 12:00**. Setuju?
-3. **1 booking boleh berapa kamar?** Rekomendasi: **1 tipe, 1 unit, N malam** (YAGNI — jangan multi-kamar dulu). Setuju?
-
-> Jawab 3 poin itu, lalu kita lock flow-nya.
-
+## Keputusan Grill — LOCKED 2026-10-08
+1. **Expired berapa jam?** ✅ **12 jam** (keputusan Rafie — `pending_payment` & `created_at < now-12h` → `expired`)
+2. **Check-in/out jam berapa?** ✅ **14:00 / 12:00** (disetujui)
+3. **1 booking boleh berapa kamar?** ✅ **1 tipe, 1 unit, N malam** (disetujui, YAGNI)
 > Next: `06-context-and-constraints.md` untuk konteks portfolio & local-first.

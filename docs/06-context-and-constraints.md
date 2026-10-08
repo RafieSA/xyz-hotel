@@ -5,7 +5,7 @@
 ## Konteks Portfolio Pribadi
 - **No deadline, no client, no bos** — kamu berdiri 2 kaki sendiri. Artinya: kualitas > kecepatan. Kita tidak kejar sprint, kita kejar showcase yang bisa kamu banggakan di CV/GitHub.
 - **Bebas kreatif:** Tipe kamar, harga, fasilitas, desain — agent atur bebas tapi tetap masuk akal bisnis hotel bintang 3.
-- **Contoh tipe kamar (agent usulkan, kamu bisa ubah):**
+- **Tipe kamar — LOCKED 2026-10-08 (akan di-seed via `database/seeders/RoomSeeder.php`):**
 
 | Tipe | Kapasitas | Kasur | Fasilitas | Harga/malam | Unit |
 |------|-----------|-------|-----------|-------------|------|
@@ -14,19 +14,9 @@
 | Family | 4 | 2 Queen | + Dapur mini, 2 kamar | Rp 850.000 | 3 |
 | Suite | 2 | 1 King | + Living room, Jacuzzi | Rp 1.250.000 | 2 |
 
-> Total 18 unit fisik (contoh: STD-101..108). Cukup untuk demo availability & laporan.
-
-## Constraints Local-First (MB Air M4)
-| Constraint | Fakta | Dampak |
-|------------|-------|--------|
-| **No Docker** | `docker --version` = not found | Pakai `php artisan serve` + Postgres/MySQL lokal, migrasi via `migrate`, bukan `docker compose` |
-| **DB lokal** | Postgres 18.4 & MySQL 9.6 ada | Pilih **satu** (rekomendasi Postgres untuk ACID & `FOR UPDATE` lebih solid, tapi MySQL juga oke) |
-| **PHP 8.2 + Node 26** | Ada | Stack Laravel + Inertia jalan native |
-| **No emulator** | Aturan xyz-haircut (jangan sentuh Pixel emulator) | Tidak relevan untuk website, tapi tetap hormati |
-| **Git local `main`** | Sudah init | Nanti `git remote add origin <github>` + push |
+> Total 18 unit fisik (STD-101..108, DLX-201..205, FAM-301..303, STE-401..402). Harga di-snapshot ke `bookings.total_price` saat booking.
 
 ## Prinsip yang Wajib Dijaga (No Future Debt)
-
 | Prinsip | Contoh Penerapan di xyz-hotel |
 |---------|-------------------------------|
 | **YAGNI** | Jangan bikin multi-hotel, multi-kamar per booking, atau payment gateway di v1. |

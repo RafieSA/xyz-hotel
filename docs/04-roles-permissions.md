@@ -63,11 +63,7 @@ public function verify(User $user): bool {
 - Setiap endpoint cek **authentication dulu, baru authorization** (jangan kebalik).
 - Log setiap aksi sensitif: `who, what, when, before, after` (audit log).
 
-## Pertanyaan Grill untuk Kamu
-1. **Setuju nama role di atas?** Atau mau ganti: Owner → Super Admin, Receptionist → Staff?
-2. **Manager boleh lihat laporan uang?** Di tabel di atas boleh — kalau tidak boleh, kita ubah jadi hanya Owner.
-3. **Customer perlu login dulu sebelum search?** Rekomendasi: **tidak perlu** — search boleh guest, booking baru wajib login.
-
-> Jawab 3 poin itu, lalu kita lock role-nya.
-
-> Next: `05-booking-flow-and-edge-cases.md` untuk alur booking yang rawan double booking.
+## Keputusan Grill — LOCKED 2026-10-08
+1. **Setuju nama role di atas?** ✅ **Setuju** (Rafie 2026-10-08)
+2. **Manager boleh lihat laporan uang?** ✅ **Ya, Manager + Owner**
+3. **Customer perlu login dulu sebelum search?** ✅ **Tidak perlu login untuk search**, booking baru wajib login
