@@ -51,7 +51,7 @@ async function fetchBookings() {
       const list = data.data || data
       bookings.value = Array.isArray(list) ? list : []
     } catch (e2) {
-      toast.add({ severity: 'error', summary: 'Gagal memuat bookings', detail: e?.response?.data?.message || e.message, life: 3000 })
+      toast.add({ severity: 'error', summary: 'Could not load bookings', detail: e?.response?.data?.message || e.message, life: 3000 })
     }
   } finally { loading.value = false }
 }
@@ -91,29 +91,29 @@ async function doVerify(id, action) {
   actionLoading.value = `verify-${id}`
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action })
-    toast.add({ severity: 'success', summary: 'Verified', detail: `Booking #${id} verified`, life: 2500 })
+    toast.add({ severity: 'success', summary: 'Booking confirmed', detail: `Booking #${id} is now verified`, life: 2500 })
     await fetchBookings(); await fetchReports()
-  } catch (e) { toast.add({ severity: 'error', summary: 'Verify gagal', detail: e?.response?.data?.message || e.message, life: 3500 }) }
+  } catch (e) { toast.add({ severity: 'error', summary: 'Could not confirm booking', detail: e?.response?.data?.message || e.message, life: 3500 }) }
   finally { actionLoading.value='' }
 }
 async function confirmReject() {
-  if (!rejectReason.value.trim()) { toast.add({ severity:'warn', summary:'Isi alasan reject', life:2000}); return }
+  if (!rejectReason.value.trim()) { toast.add({ severity:'warn', summary:'Add a reason to decline', detail:'Tell the guest why you declined this booking', life:2000}); return }
   const id = rejectId.value
   actionLoading.value=`verify-${id}`
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action:'rejected', reject_reason: rejectReason.value })
-    toast.add({ severity:'success', summary:'Rejected', detail:`Booking #${id} rejected`, life:2500 })
+    toast.add({ severity:'success', summary:'Booking declined', detail:`Booking #${id} was declined`, life:2500 })
     showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports()
-  } catch(e){ toast.add({ severity:'error', summary:'Reject gagal', detail:e?.response?.data?.message||e.message, life:3500}) }
+  } catch(e){ toast.add({ severity:'error', summary:'Could not decline booking', detail:e?.response?.data?.message||e.message, life:3500}) }
   finally{ actionLoading.value='' }
 }
 async function doCheckIn(id){
   actionLoading.value=`checkin-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Check-In berhasil', detail:`Booking #${id} checked_in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check-In gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Guest checked in', detail:`Booking #${id} is now checked in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check in failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 async function doCheckOut(id){
   actionLoading.value=`checkout-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Check-Out berhasil', detail:`Booking #${id} checked_out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Check-Out gagal', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Checkout complete', detail:`Booking #${id} is now checked out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports() } catch(e){ toast.add({ severity:'error', summary:'Checkout failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
 }
 function openDetail(row){ selected.value=row; showDetail.value=true }
 
@@ -126,7 +126,7 @@ const unitStatusOptions = [
 async function updateUnitStatus(unit){
   const newStatus = unitStatusMap.value[unit.id]
   if(!newStatus) return
-  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Unit updated', detail:`${unit.code} → ${newStatus}`, life:2500 }); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Update gagal', detail:e?.response?.data?.message||e.message, life:3500}) }
+  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} is now ${newStatus}`, life:2500 }); await fetchUnits() } catch(e){ toast.add({ severity:'error', summary:'Could not update room', detail:e?.response?.data?.message||e.message, life:3500}) }
 }
 const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn', maintenance:'danger' }[s]||'secondary')
 
@@ -194,13 +194,13 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       <div class="flex items-center gap-3">
         <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5"><LayoutDashboard class="w-5 h-5" /></span>
         <div>
-          <h1 class="font-display font-bold text-2xl text-[#1A3A4A]">Backoffice</h1>
-          <p class="text-sm text-[#6B7280]">Kelola booking, kamar, dan laporan.</p>
+          <h1 class="font-display font-bold text-2xl text-[#1A3A4A]">Dashboard</h1>
+          <p class="text-sm text-[#6B7280]">Manage bookings, rooms, and reports.</p>
         </div>
       </div>
       <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
-        <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter tanggal" showIcon class="min-w-[220px]" />
-        <Button label="Refresh" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports()" />
+        <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter by date" showIcon class="min-w-[220px]" />
+        <Button label="Refresh Data" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports()" />
       </div>
     </div>
 
@@ -212,7 +212,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Total Bookings</p>
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ totalBookings }}</p>
-              <p class="text-xs text-[#6B7280] mt-1">Semua status</p>
+              <p class="text-xs text-[#6B7280] mt-1">All statuses</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><CalendarDays class="w-5 h-5" /></span>
           </div>
@@ -222,9 +222,9 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         <template #content>
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Revenue</p>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Total Revenue</p>
               <p class="text-2xl font-bold text-[#8B5A2B] mt-1">{{ fmt(totalRevenue) }}</p>
-              <p class="text-xs text-[#6B7280] mt-1">Verified + checked</p>
+              <p class="text-xs text-[#6B7280] mt-1">Verified and completed stays</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Wallet class="w-5 h-5" /></span>
           </div>
@@ -234,7 +234,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         <template #content>
           <div class="flex items-start justify-between">
             <div>
-              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Occupancy Rate</p>
+              <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Occupancy</p>
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ occupancyRate }}%</p>
               <div class="mt-2 h-1.5 w-24 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#8B5A2B] rounded-full" :style="{ width: occupancyRate+'%' }"></div></div>
             </div>
@@ -248,7 +248,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Available Units</p>
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ availableUnits }} <span class="text-sm font-normal text-[#6B7280]">/ {{ roomUnits.length || '-' }}</span></p>
-              <p class="text-xs text-[#2E7D32] mt-1">Ready to book</p>
+              <p class="text-xs text-[#2E7D32] mt-1">Ready for guests</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Bed class="w-5 h-5" /></span>
           </div>
@@ -259,16 +259,16 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     <!-- Charts -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] lg:col-span-2">
-        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Revenue per Hari</span></template>
+        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Revenue per Day</span></template>
         <template #content>
           <div class="h-[260px]"><Chart type="line" :data="revenueChartData" :options="revenueChartOptions" /></div>
         </template>
       </Card>
       <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
-        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Occupancy vs Available</span></template>
+        <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Occupancy vs Availability</span></template>
         <template #content>
           <div class="h-[260px] flex items-center justify-center"><Chart type="doughnut" :data="doughnutData" :options="doughnutOptions" /></div>
-          <p class="text-center text-xs text-[#6B7280] mt-2">{{ occupancyRate }}% terisi · {{ 100-occupancyRate }}% tersedia</p>
+          <p class="text-center text-xs text-[#6B7280] mt-2">{{ occupancyRate }}% occupied and {{ 100-occupancyRate }}% available</p>
         </template>
       </Card>
     </div>
@@ -288,18 +288,18 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
-      <template #title><div class="flex items-center justify-between"><span class="text-[#1A3A4A] font-semibold text-base">Booking terbaru</span><span class="text-xs text-[#6B7280]">{{ bookings.length }} rows</span></div></template>
+      <template #title><div class="flex items-center justify-between"><span class="text-[#1A3A4A] font-semibold text-base">Recent bookings</span><span class="text-xs text-[#6B7280]">{{ bookings.length }} bookings</span></div></template>
       <template #content>
         <DataTable :value="bookings" paginator :rows="8" stripedRows class="text-sm" responsiveLayout="scroll" :loading="loading" dataKey="id">
           <Column field="id" header="ID" sortable style="width:80px" />
           <Column field="user_id" header="User" sortable style="width:90px" />
-          <Column field="room_type_id" header="Tipe" style="width:80px">
+          <Column field="room_type_id" header="Type" style="width:80px">
             <template #body="{ data }">#{{ data.room_type_id }}</template>
           </Column>
-          <Column field="check_in" header="Check-in" sortable>
+          <Column field="check_in" header="Check in" sortable>
             <template #body="{ data }">{{ fmtDate(data.check_in) }}</template>
           </Column>
-          <Column field="check_out" header="Check-out">
+          <Column field="check_out" header="Check out">
             <template #body="{ data }">{{ fmtDate(data.check_out) }}</template>
           </Column>
           <Column field="status" header="Status">
@@ -310,17 +310,17 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           </Column>
           <Column header="Proof">
             <template #body="{ data }">
-              <span v-if="data.proof_url" class="text-xs text-[#8B5A2B] underline cursor-pointer" @click="openDetail(data)">lihat</span>
+              <span v-if="data.proof_url" class="text-xs text-[#8B5A2B] underline cursor-pointer" @click="openDetail(data)">view</span>
               <span v-else class="text-xs text-[#9CA3AF]">-</span>
             </template>
           </Column>
-          <Column header="Aksi" style="min-width:280px">
+          <Column header="Actions" style="min-width:280px">
             <template #body="{ data }">
               <div class="flex flex-wrap gap-1.5">
-                <Button v-if="data.status==='waiting_verification'" label="Verify" size="small" class="!py-1 !px-2.5 !text-xs !bg-green-600 !border-green-600 hover:!bg-green-700 !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'verified')" />
-                <Button v-if="data.status==='waiting_verification'" label="Reject" size="small" severity="danger" outlined class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'rejected')" />
-                <Button v-if="data.status==='verified'" label="Check-In" size="small" class="!py-1 !px-2.5 !text-xs !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-full" :loading="actionLoading===`checkin-${data.id}`" @click="doCheckIn(data.id)" />
-                <Button v-if="data.status==='checked_in'" label="Check-Out" size="small" severity="info" class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`checkout-${data.id}`" @click="doCheckOut(data.id)" />
+                <Button v-if="data.status==='waiting_verification'" label="Approve" size="small" class="!py-1 !px-2.5 !text-xs !bg-green-600 !border-green-600 hover:!bg-green-700 !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'verified')" />
+                <Button v-if="data.status==='waiting_verification'" label="Decline" size="small" severity="danger" outlined class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'rejected')" />
+                <Button v-if="data.status==='verified'" label="Check In" size="small" class="!py-1 !px-2.5 !text-xs !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-full" :loading="actionLoading===`checkin-${data.id}`" @click="doCheckIn(data.id)" />
+                <Button v-if="data.status==='checked_in'" label="Check Out" size="small" severity="info" class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`checkout-${data.id}`" @click="doCheckOut(data.id)" />
                 <Button icon="pi pi-eye" size="small" text rounded class="!text-[#6B7280]" @click="openDetail(data)" />
               </div>
             </template>
@@ -337,11 +337,11 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <Column field="code" header="Code" sortable />
           <Column field="room_type_id" header="Type" sortable><template #body="{ data }">#{{ data.room_type_id }}</template></Column>
           <Column field="status" header="Status"><template #body="{ data }"><Tag :value="data.status" :severity="unitSeverity(data.status)" rounded /></template></Column>
-          <Column header="Ubah Status" style="min-width:280px">
+          <Column header="Update Status" style="min-width:280px">
             <template #body="{ data }">
               <div class="flex gap-2">
-                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Pilih" class="w-full !text-xs" />
-                <Button label="Save" size="small" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-full" @click="updateUnitStatus(data)" />
+                <Select v-model="unitStatusMap[data.id]" :options="unitStatusOptions" optionLabel="label" optionValue="value" placeholder="Select status" class="w-full !text-xs" />
+                <Button label="Save Changes" size="small" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-full" @click="updateUnitStatus(data)" />
               </div>
             </template>
           </Column>
@@ -363,24 +363,24 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <Dialog v-model:visible="showDetail" modal header="Detail Booking" :style="{ width:'560px' }" class="!rounded-xl">
+    <Dialog v-model:visible="showDetail" modal header="Booking Details" :style="{ width:'560px' }" class="!rounded-xl">
       <div v-if="selected" class="space-y-3 text-sm">
-        <p><span class="font-semibold">ID:</span> {{ selected.id }} — {{ selected.status }}</p>
+        <p><span class="font-semibold">ID:</span> {{ selected.id }} ({{ selected.status }})</p>
         <p><span class="font-semibold">Total:</span> {{ fmt(selected.total_price) }}</p>
         <p v-if="selected.proof_url" class="break-all"><span class="font-semibold">Proof:</span> <a :href="selected.proof_url" target="_blank" class="text-[#8B5A2B] underline">{{ selected.proof_url }}</a></p>
         <img v-if="selected.proof_url && !selected.proof_url.endsWith('.pdf')" :src="selected.proof_url" alt="proof" class="max-h-64 rounded-lg border" />
       </div>
-      <template #footer><Button label="Tutup" class="!rounded-xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
+      <template #footer><Button label="Close" class="!rounded-xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
     </Dialog>
 
-    <Dialog v-model:visible="showReject" modal header="Tolak Booking" :style="{ width:'420px' }">
+    <Dialog v-model:visible="showReject" modal header="Decline Booking" :style="{ width:'420px' }">
       <div class="space-y-3">
-        <p class="text-sm text-[#6B7280]">Alasan penolakan akan dikirim ke tamu.</p>
-        <InputText v-model="rejectReason" placeholder="Alasan reject" class="w-full" />
+        <p class="text-sm text-[#6B7280]">The guest will see this reason.</p>
+        <InputText v-model="rejectReason" placeholder="Enter reason for declining" class="w-full" />
       </div>
       <template #footer>
-        <Button label="Batal" text @click="showReject=false" />
-        <Button label="Reject" severity="danger" :loading="actionLoading===`verify-${rejectId}`" @click="confirmReject" />
+        <Button label="Cancel" text @click="showReject=false" />
+        <Button label="Decline Booking" severity="danger" :loading="actionLoading===`verify-${rejectId}`" @click="confirmReject" />
       </template>
     </Dialog>
   </div>

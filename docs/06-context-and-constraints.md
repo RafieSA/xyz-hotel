@@ -1,11 +1,11 @@
-# 06 — Context & Constraints (Portfolio, Local, Security)
+# 06: Context and Constraints (Portfolio, Local, Security)
 
-> This file answers Q5: "You decide, be as creative as you want" — but still measured.
+> This file answers Q5: you decide, be creative within clear constraints for a realistic 3 star hotel.
 
 ## Personal Portfolio Context
-- **No deadline, no client, no boss** — you stand on your own two feet. That means: quality > speed. We are not chasing sprints; we are chasing a showcase you can be proud of on your CV/GitHub.
-- **Free to be creative:** Room types, pricing, amenities, design — the agent may decide freely as long as it remains realistic for a 3-star hotel business.
-- **Room types — LOCKED 2026-10-08 (to be seeded via `database/seeders/RoomSeeder.php`):**
+- **No deadline, no client, no boss**, you stand on your own two feet. That means: quality > speed. We are not chasing sprints; we are chasing a showcase you can be proud of on your CV/GitHub.
+- **Free to be creative:** Room types, pricing, amenities, design, the agent may decide freely as long as it remains realistic for a 3-star hotel business.
+- **Room types, LOCKED 2026-10-08 (to be seeded via `database/seeders/RoomSeeder.php`):**
 
 | Type | Capacity | Bed | Amenities | Price/night | Units |
 |------|----------|-----|-----------|-------------|-------|
@@ -28,7 +28,7 @@
 | **Clean Code** | Variable names like `occupiedUnits` not `x`, functions < 30 lines. |
 | **Testable** | Availability logic can be unit-tested without HTTP. |
 
-## Security — No Leaks Allowed (Checklist)
+## Security, No Leaks Allowed (Checklist)
 
 | Threat | Prevention in xyz-hotel |
 |--------|--------------------------|
@@ -45,15 +45,15 @@
 ## Scalability & Maintainability (Portfolio Must Be Long-Lived)
 - **Pagination** on booking/room listings (do not `SELECT *` without a limit).
 - **DB indexes:** `bookings(check_in, check_out, room_type_id, status)`, `users(email)`.
-- **Soft deletes** for rooms & users (do not hard-delete — booking history is needed).
+- **Soft deletes** for rooms & users (do not hard-delete, booking history is needed).
 - **Audit log** in a separate table.
 - **API documentation** in `docs/02-api.md` (to be created in Phase 1).
 - **Structured logging:** `Log::info('booking.created', ['id'=>..])`.
 
 ## Creativity Allowed (Because No Rules)
-- Free landing page design — can use a warm hotel theme (gold, cream) distinct from the blue of xyz-haircut.
+- Free landing page design, can use a warm hotel theme (gold, cream) distinct from the blue of xyz-haircut.
 - Bonus portfolio features: hotel location map, photo gallery, FAQ, WhatsApp contact.
-- Reports can use charts (Chart.js) — a chance to showcase skills.
+- Reports can use charts (Chart.js), a chance to showcase skills.
 
 ## Global Definition of Done (Portfolio Grade)
 - [ ] Clean code, README with local setup instructions

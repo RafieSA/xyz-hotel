@@ -1,16 +1,16 @@
-# 02 — PRD (Product Requirements Document) — Complete Level
+# 02: Product Requirements Document (Complete Level)
 
-> Status: Phase 0 Draft — will be refined after final stack & role grilling.
+> Status: Phase 0 draft. Updated after stack and role decisions are locked.
 
 ## 1. Product Summary
-A hotel booking website for a **single hotel** with separate frontoffice and backoffice, manual bank-transfer payment, and a real-time availability calendar.
+Single hotel booking website. Customers search real dates and book without calling reception. Staff manage availability, verify payments, and pull revenue reports from one dashboard. Payment is manual bank transfer with proof upload. Availability is real time and ACID protected.
 
 ## 2. Users & Roles (4 Roles)
 See details in `04-roles-permissions.md`. Summary:
-- **Super Admin / Owner** — manages everything + views financial reports
-- **Manager** — manages rooms, pricing, promotions, verifies bookings
-- **Receptionist / Front Desk** — handles check-in/out, updates room status (clean/dirty/maintenance)
-- **Customer** — registers, searches rooms, books, uploads proof, leaves reviews
+- **Super Admin / Owner**, manages everything + views financial reports
+- **Manager**, manages rooms, pricing, promotions, verifies bookings
+- **Receptionist / Front Desk**, handles check-in/out, updates room status (clean/dirty/maintenance)
+- **Customer**, registers, searches rooms, books, uploads proof, leaves reviews
 
 ## 3. Frontoffice Features (Customer)
 
@@ -31,7 +31,7 @@ See details in `04-roles-permissions.md`. Summary:
 - [ ] Email notifications (booking created, verified, expired)
 
 ### 3.3 Down-to-Earth Example Scenario
-> **Scenario A:** Ani wants a 2-night stay (Oct 10–12). She opens the website → selects dates → system checks: 2 Deluxe units still available → Ani books 1 Deluxe room → receives transfer instructions to BCA 123456 for IDR 1,000,000 → uploads proof → admin verifies within 10 minutes → status becomes `verified` → Ani receives an invoice email.
+> **Scenario A:** Ani wants a 2-night stay (Oct 10,12). She opens the website → selects dates → system checks: 2 Deluxe units still available → Ani books 1 Deluxe room → receives transfer instructions to BCA 123456 for IDR 1,000,000 → uploads proof → admin verifies within 10 minutes → status becomes `verified` → Ani receives an invoice email.
 
 ## 4. Backoffice Features (Management)
 
@@ -75,7 +75,7 @@ See `05-booking-flow-and-edge-cases.md` for detailed flow + edge cases.
 ## 6. Important Business Rules
 | Rule | Example |
 |------|---------|
-| Check-in 14:00, check-out 12:00 | Booking Oct 10–12 = 2 nights, unit is free at 12:00 on the 12th |
+| Check-in 14:00, check-out 12:00 | Booking Oct 10,12 = 2 nights, unit is free at 12:00 on the 12th |
 | 1 booking = 1 room type, N nights | No mixing room types in a single booking (YAGNI) |
 | Overlapping bookings prohibited | If a Deluxe room has 5 total units and all 5 are booked on date X, the 6th booking must be rejected |
 | Price = price/night × nights − voucher discount | Voucher checks expiry & quota |
@@ -96,6 +96,6 @@ See `05-booking-flow-and-edge-cases.md` for detailed flow + edge cases.
 
 ## 9. Definition of Done per Feature
 - Has API + UI + validation + error handling + logging + at least 1 happy-path + 1 edge-case test.
-- No happy-path-only — all edge cases in `05-...` must be handled.
+- No happy-path-only, all edge cases in `05-...` must be handled.
 
 > Next: `03-tech-stack-decision.md` to choose a stack without Next.js.

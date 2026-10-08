@@ -1,6 +1,6 @@
-# 11 — Phase 3: Voucher, Proof Upload, Verification & Check-in/out (COMPLETE 2026-10-08)
+# 11: Phase 3 Voucher, Proof Upload, Verification and Check-in/out (Complete 2026-10-08)
 
-> One full round: voucher discount + multipart proof upload (MIME + 5MB) + admin verification + check-in/out with room-unit assignment (FOR UPDATE). Live curl verified end-to-end.
+> One full round shipped: voucher discounts, multipart proof upload with MIME and 5 MB limit, admin verification, and check in/out with room unit assignment using FOR UPDATE. Verified end to end with live curl.
 
 ## Summary
 
@@ -18,7 +18,7 @@
 
 **Model:** `vouchers` (code unique, discount_percent 0-100, min_nights, quota nullable, used_count, expires_at)
 
-**Repo `voucher.go`:** FindByCode, FindByCodeForUpdate (FOR UPDATE), Create, IncrementUsedCountTx, List — all $1 safe.
+**Repo `voucher.go`:** FindByCode, FindByCodeForUpdate (FOR UPDATE), Create, IncrementUsedCountTx, List, all $1 safe.
 
 **Service `voucher.go`:** ValidateAndApply(code, roomTypeID, checkIn, checkOut) checks expiry, quota (used_count < quota), min_nights (nights >= min_nights), returns discount + voucherID; CalculateDiscountedPrice(price, nights, discount) = price*nights*(100-discount)/100.
 
@@ -29,7 +29,7 @@
 
 **Booking Integration:** `AvailabilityService.CreateBooking` now accepts voucherCode, validates in same DB transaction (FOR UPDATE voucher row), increments used_count atomically, snapshots discounted total_price.
 
-**Tests `voucher_test.go`:** expiry, quota, min_nights, CalculateDiscountedPrice, DiscountedTotal — table-driven, all pass.
+**Tests `voucher_test.go`:** expiry, quota, min_nights, CalculateDiscountedPrice, DiscountedTotal, table-driven, all pass.
 
 **Live:**
 ```bash
@@ -44,7 +44,7 @@ POST /api/bookings {"room_type_id":1,"check_in":"2026-10-25","check_out":"2026-1
 
 **Storage:** `backend/storage/uploads/bookings/` (gitignored `uploads/*`, .gitkeep), created at startup, Fiber BodyLimit 6MB.
 
-**Repo `booking.go`:** GetByIDTx, UpdateProofURLTx, UpdateStatusTx — FOR UPDATE.
+**Repo `booking.go`:** GetByIDTx, UpdateProofURLTx, UpdateStatusTx, FOR UPDATE.
 
 **Handler `booking.go` UploadProof:**
 - `POST /api/bookings/:id/proof` → Auth + IDOR (booking.user_id == auth.id, else 403)
@@ -53,7 +53,7 @@ POST /api/bookings {"room_type_id":1,"check_in":"2026-10-25","check_out":"2026-1
 
 **Handler VerifyBooking:**
 - `PATCH /api/admin/bookings/:id/verify` → Auth + RequireRole(owner,manager)
-- Body `{action: "verified"|"rejected", reject_reason?: string}` — reject_reason required if rejected
+- Body `{action: "verified"|"rejected", reject_reason?: string}`, reject_reason required if rejected
 - Validates status == waiting_verification else 409, updates to verified/rejected, audit, slog.
 
 **Tests `upload_test.go`:** jpg/jpeg/png/pdf pass, php/exe fail, magic mismatch fail, 6MB fail, 5MB pass, empty/txt fail.

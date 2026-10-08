@@ -1,6 +1,6 @@
-# 08 — Dependencies & Packages (LOCKED 2026-10-08)
+# 08: Dependencies and Packages (Locked 2026-10-08)
 
-> Rafie's final decision: **Go Backend + Vue Frontend — priority #1 LOOKS GOOD (beautifully professional)**. Tired of shadcn, no need for a speed-focused engine. This stack is the result of a 2026 internet deep dive + frontend-design skills.
+> Locked decision: Go backend plus Vue frontend. Priority 1 is that it looks great and feels premium. This stack comes from a 2026 deep dive and it runs lean on the M4.
 
 ## Final Stack Locked
 
@@ -10,7 +10,7 @@ Backend:  Go 1.26.3 + Fiber + pgx/sqlx + golang-migrate + validator + jwt
 DB:       Postgres 18.4 (local, without Docker)
 ```
 
-## Frontend — Vue 3
+## Frontend, Vue 3
 
 | Need | Library | Version | Why It Looks Good | Install |
 |------|---------|---------|-------------------|---------|
@@ -19,13 +19,13 @@ DB:       Postgres 18.4 (local, without Docker)
 | **Routing** | `vue-router` | ^4 | Separate routes for Frontoffice vs Backoffice | `npm i vue-router` |
 | **State** | `pinia` | ^3 | Clean auth & booking state, SRP | `npm i pinia` |
 | **Styling** | `tailwindcss` | ^3.4 | 100% custom beautiful canvas `#8B5A2B`, not a template | `npm i -D tailwindcss postcss autoprefixer` |
-| **UI Library** | `primevue` | ^4.3 | **Most beautiful Aura theme in 2026** — rounded-xl, soft shadows, premium DataTable & Calendar for a hotel | `npm i primevue` |
+| **UI Library** | `primevue` | ^4.3 | **Most beautiful Aura theme in 2026**, rounded-xl, soft shadows, premium DataTable & Calendar for a hotel | `npm i primevue` |
 | **Theme** | `@primevue/themes` | via primevue | Aura preset customized to `#8B5A2B` + `#C9A86A` | included with primevue |
 | **Icons** | `lucide-vue-next` | latest | Thin premium lines, perfect match for PrimeVue, 1000+ icons | `npm i lucide-vue-next` |
 | **HTTP** | `axios` | ^1.7 | Calls Go API `http://localhost:8080` | `npm i axios` |
 | **Form Validation** | `zod` + `vee-validate` | latest | Zod validation in Vue, never trust user input | `npm i zod vee-validate` |
 
-### PrimeVue Aura — The Key to Beauty
+### PrimeVue Aura, The Key to Beauty
 
 **Do not use the default blue.** Override in `frontend/src/theme/aura.js`:
 
@@ -57,7 +57,7 @@ export const WarmAura = definePreset(Aura, {
 | Toast notification | `Toast` | verified green, rejected red |
 | Report chart | `Chart` (Chart.js) | Occupancy & revenue |
 
-### Tailwind Config — Beautiful Tokens
+### Tailwind Config, Beautiful Tokens
 
 ```js
 // tailwind.config.js
@@ -76,7 +76,7 @@ export default {
 }
 ```
 
-## Backend — Go 1.26.3
+## Backend, Go 1.26.3
 
 | Need | Library | Reason | Install |
 |------|---------|--------|---------|
@@ -116,12 +116,12 @@ backend/
 
 ## Beauty Best Practices (Required)
 
-- **1 primary color:** `#8B5A2B` for all CTAs, prices, primary badges — do not mix in blue template colors.
-- **1 radius:** `rounded-xl` for cards, `rounded-full` for buttons — do not randomize.
-- **1 shadow:** `shadow-sm` normal, `shadow-md` on hover — no tacky `shadow-lg`.
+- **1 primary color:** `#8B5A2B` for all CTAs, prices, primary badges, do not mix in blue template colors.
+- **1 radius:** `rounded-xl` for cards, `rounded-full` for buttons, do not randomize.
+- **1 shadow:** `shadow-sm` normal, `shadow-md` on hover, no tacky `shadow-lg`.
 - **Icons at 20px** consistently `w-5 h-5`, color `text-[#8B5A2B]` or `text-[#6B7280]`.
-- **Validate in 2 places:** Zod in Vue + validator in Go — never trust the frontend alone.
-- **No pointless hand-coding:** Use Fiber, sqlx, PrimeVue — do not build a router/table from scratch.
+- **Validate in 2 places:** Zod in Vue + validator in Go, never trust the frontend alone.
+- **No pointless hand-coding:** Use Fiber, sqlx, PrimeVue, do not build a router/table from scratch.
 
 ## DoD Dependencies
 
@@ -130,7 +130,7 @@ backend/
 - [ ] `backend/` scaffold: `go mod init` + fiber + pgx/sqlx + migrate
 - [ ] `07-design.md` tokens synced to `tailwind.config.js` & `aura.js`
 
-> Next: Phase 1 scaffolding — `backend/` + `frontend/` hello world + migration + seed 18 units.
+> Next: Phase 1 scaffolding, `backend/` + `frontend/` hello world + migration + seed 18 units.
 
 ## Preview References (Open in Browser)
 

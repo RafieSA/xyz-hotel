@@ -144,7 +144,7 @@ func main() {
 			rr := repo.NewRoomRepo(db)
 			list, err := rr.ListRoomTypesWithRating()
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed"})
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room types. Please try again"})
 			}
 			return c.JSON(fiber.Map{"data": list})
 		})
@@ -157,7 +157,7 @@ func main() {
 		}
 	} else {
 		app.Get("/api/availability", func(c *fiber.Ctx) error {
-			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "db not connected"})
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 		})
 	}
 
@@ -180,7 +180,7 @@ func main() {
 	if db != nil && bookingHandler != nil {
 		admin := app.Group("/api/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager))
 		admin.Get("/ping", func(c *fiber.Ctx) error {
-			return c.JSON(fiber.Map{"message": "admin ok", "role": c.Locals("role")})
+			return c.JSON(fiber.Map{"message": "Admin access confirmed", "role": c.Locals("role")})
 		})
 		admin.Get("/bookings", bookingHandler.ListBookings)
 		admin.Patch("/bookings/:id/verify", bookingHandler.VerifyBooking)
@@ -197,7 +197,7 @@ func main() {
 			rr := repo.NewRoomRepo(db)
 			types, err := rr.ListRoomTypes()
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to list"})
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load rooms. Please try again"})
 			}
 			return c.JSON(fiber.Map{"data": types})
 		})
@@ -210,7 +210,7 @@ func main() {
 			rr := repo.NewRoomRepo(db)
 			list, err := rr.ListAllUnits(c.Context())
 			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to list units"})
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room units. Please try again"})
 			}
 			return c.JSON(fiber.Map{"data": list})
 		})

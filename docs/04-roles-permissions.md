@@ -1,6 +1,6 @@
-# 04 — Roles & Permissions (4 Roles)
+# 04: Roles and Permissions (4 Roles)
 
-> Grilling Q3 — 4 roles for a single hotel. Made down-to-earth with examples.
+> Grilling Q3: four roles for one hotel, defined with clear boundaries and real examples.
 
 ## Role List
 
@@ -33,12 +33,12 @@
 
 | Threat | Example | Prevention |
 |--------|---------|------------|
-| **IDOR** | Customer id=5 tries to view booking id=99 belonging to someone else via `/bookings/99` | Check `booking.user_id == auth.id` OR admin role — in Policy |
-| **BOLA** | Customer tries `POST /rooms` (create room) | Middleware `role:manager,owner` — reject with 403 |
-| **BFLA** | Receptionist tries to open `/reports/revenue` | Middleware `role:owner,manager` — reject with 403 |
+| **IDOR** | Customer id=5 tries to view booking id=99 belonging to someone else via `/bookings/99` | Check `booking.user_id == auth.id` OR admin role, in Policy |
+| **BOLA** | Customer tries `POST /rooms` (create room) | Middleware `role:manager,owner`, reject with 403 |
+| **BFLA** | Receptionist tries to open `/reports/revenue` | Middleware `role:owner,manager`, reject with 403 |
 | **Broken Auth** | Token is stolen | Password hashed with argon2/bcrypt, httpOnly cookie / JWT 15 min + refresh, login rate limiting |
 
-**Example code (Laravel Policy) — illustration:**
+**Example code (Laravel Policy), illustration:**
 ```php
 // BookingPolicy.php
 public function view(User $user, Booking $booking): bool {
@@ -54,16 +54,16 @@ public function verify(User $user): bool {
 |------|----------|
 | Manager resigns, account still active | Owner deactivates the user; all bookings remain intact (soft-delete user, not hard delete) |
 | Receptionist tries to verify a booking (not authorized) | API returns 403 + logs `unauthorized attempt` |
-| Customer tries to self check-in | Rejected — only receptionist/manager/owner |
-| Owner also wants to be a customer | Allowed — 1 user has 1 primary role, but can create a separate customer account (don't mix roles) |
+| Customer tries to self check-in | Rejected, only receptionist/manager/owner |
+| Owner also wants to be a customer | Allowed, 1 user has 1 primary role, but can create a separate customer account (don't mix roles) |
 
 ## Best Practices
-- **1 user = 1 role** in v1 (YAGNI — don't do many-to-many yet).
+- **1 user = 1 role** in v1 (YAGNI, don't do many-to-many yet).
 - Store `role` in `users.role` enum: `owner, manager, receptionist, customer`.
 - Every endpoint checks **authentication first, then authorization** (not the other way around).
 - Log every sensitive action: `who, what, when, before, after` (audit log).
 
-## Grilling Decisions — LOCKED 2026-10-08
+## Grilling Decisions, LOCKED 2026-10-08
 1. **Agree with the role names above?** ✅ **Agreed** (Rafie 2026-10-08)
 2. **Can Manager view financial reports?** ✅ **Yes, Manager + Owner**
 3. **Must customer log in before searching?** ✅ **No login required for search**, login only required to book

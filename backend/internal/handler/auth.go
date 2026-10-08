@@ -31,25 +31,30 @@ type LoginRequest struct {
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please check your name, email and password and try again", "details": err.Error()})
 	}
 	user, err := h.AuthService.Register(c.Context(), req.Name, req.Email, req.Password)
 	if err != nil {
-		if err.Error() == "email already registered" {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": err.Error()})
+		msg := err.Error()
+		if msg == "This email is already registered. Please sign in instead" {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
 		}
-		if err.Error() == "password must be at least 8 characters" || err.Error() == "invalid email format" {
+		if msg == "Password needs at least 8 characters" || msg == "Enter a valid email address like name@example.com" || msg == "Name, email and password are required. Please fill in all fields" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
+		}
+		// fallback for legacy exact strings if service not yet updated
+		if msg == "email already registered" || msg == "password must be at least 8 characters" || msg == "invalid email format" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error()})
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not create your account. Please try again"})
 	}
 	// issue tokens
 	access, refresh, err := h.AuthService.IssueTokensForTest(user)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "token generation failed"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not create your session. Please try again"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"data": fiber.Map{
@@ -64,10 +69,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req LoginRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please enter a valid email and password", "details": err.Error()})
 	}
 	access, refresh, user, err := h.AuthService.Login(c.Context(), req.Email, req.Password)
 	if err != nil {
@@ -81,7 +86,6 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		},
 	})
 }
-
 // Me GET /api/auth/me (auth required)
 func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	uidVal := c.Locals("user_id")
@@ -94,11 +98,11 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	case float64:
 		uid = int64(v)
 	default:
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to continue"})
 	}
 	user, err := h.AuthService.UserRepo.FindByID(c.Context(), uid)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "user not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "We could not find your account. Please sign in again"})
 	}
 	return c.JSON(fiber.Map{"data": fiber.Map{"id": user.ID, "name": user.Name, "email": user.Email, "role": user.Role}})
 }
@@ -109,7 +113,7 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		RefreshToken string `json:"refresh_token"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.RefreshToken == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "refresh_token required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Refresh token is required. Please sign in again"})
 	}
 	access, refresh, err := h.AuthService.Refresh(c.Context(), body.RefreshToken)
 	if err != nil {

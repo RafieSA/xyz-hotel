@@ -15,13 +15,31 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-// Optional: handle 401 -> clear token
+// Extract a helpful message from API error responses
+export function getApiErrorMessage(err, fallback = 'Something went wrong. Please try again') {
+  if (err?.response?.data?.message) return err.response.data.message
+  if (err?.response?.data?.error) return err.response.data.error
+  if (err?.message) return err.message
+  return fallback
+}
+
+export function getApiErrorDetails(err) {
+  return err?.response?.data?.details || null
+}
+
+// Handle auth errors with clear messaging
 client.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response && err.response.status === 401) {
-      // don't auto-redirect, let caller handle; but optionally clear expired token
-      // localStorage.removeItem('token')
+    const status = err.response?.status
+    if (status === 401) {
+      err.userMessage = 'Your session expired. Please sign in again'
+    } else if (status === 403) {
+      err.userMessage = err.response?.data?.message || 'You do not have permission for this'
+    } else if (err.response?.data?.message) {
+      err.userMessage = err.response.data.message
+    } else if (!err.response) {
+      err.userMessage = 'Cannot reach the server. Check your connection and try again'
     }
     return Promise.reject(err)
   }

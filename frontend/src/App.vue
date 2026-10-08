@@ -13,16 +13,16 @@ import { BedDouble } from 'lucide-vue-next'
           xyz<span class="text-[#C9A86A]">hotel</span>
         </RouterLink>
         <div class="hidden md:flex items-center gap-6 text-sm font-medium">
-          <RouterLink to="/" class="hover:text-[#C9A86A] transition-colors">Kamar</RouterLink>
-          <RouterLink to="/bookings" class="hover:text-[#C9A86A] transition-colors">Booking Saya</RouterLink>
-          <a href="#" class="hover:text-[#C9A86A] transition-colors">Fasilitas</a>
-          <a href="#" class="hover:text-[#C9A86A] transition-colors">Kontak</a>
+          <RouterLink to="/" class="hover:text-[#C9A86A] transition-colors">Rooms</RouterLink>
+          <RouterLink to="/bookings" class="hover:text-[#C9A86A] transition-colors">My Bookings</RouterLink>
+          <a href="#" class="hover:text-[#C9A86A] transition-colors">Amenities</a>
+          <a href="#" class="hover:text-[#C9A86A] transition-colors">Contact</a>
         </div>
         <div class="flex items-center gap-3">
-          <RouterLink to="/bookings" class="hidden sm:inline text-xs border border-white/30 rounded-full px-3 py-1.5 hover:bg-white hover:text-[#1A3A4A] transition-colors">Booking Saya</RouterLink>
-          <RouterLink to="/login" class="hidden sm:inline text-sm hover:text-[#C9A86A] transition-colors">Masuk</RouterLink>
-          <RouterLink to="/admin" class="text-xs border border-white/30 rounded-full px-3 py-1 hover:bg-white hover:text-[#1A3A4A] transition-colors">Backoffice</RouterLink>
-          <RouterLink to="/" class="bg-[#8B5A2B] hover:bg-[#6F4620] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Booking Sekarang</RouterLink>
+          <RouterLink to="/bookings" class="hidden sm:inline text-xs border border-white/30 rounded-full px-3 py-1.5 hover:bg-white hover:text-[#1A3A4A] transition-colors">My Bookings</RouterLink>
+          <RouterLink to="/login" class="hidden sm:inline text-sm hover:text-[#C9A86A] transition-colors">Sign In</RouterLink>
+          <RouterLink to="/admin" class="text-xs border border-white/30 rounded-full px-3 py-1 hover:bg-white hover:text-[#1A3A4A] transition-colors">Dashboard</RouterLink>
+          <RouterLink to="/" class="bg-[#8B5A2B] hover:bg-[#6F4620] text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Book Your Stay</RouterLink>
         </div>
       </div>
     </nav>

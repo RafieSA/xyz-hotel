@@ -1,6 +1,6 @@
-# 01 — Brainstorming Log (Session 2026-10-08)
+# 01: Brainstorming Log (Session 2026-10-08)
 
-> This file records the **entire conversation & context** of Phase 0. Goal: if you forget tomorrow, opening this file brings it all back.
+> This file is the complete record of Phase 0. It captures every decision, tradeoff, and locked constraint so you can resume tomorrow with full context.
 
 ## Session Summary
 
@@ -16,23 +16,23 @@
 | 2026-10-08 | Rafie | Requested preview URLs to copy into browser. |
 | 2026-10-08 | Agent | Provided 12 URLs: primevue.org, ui.nuxt.com, naiveui, vuetify, lucide, unocss playground, etc. |
 | 2026-10-08 | Rafie | "Your recommendation? Best choice?" |
-| 2026-10-08 | Agent | Best choice: **Tailwind + PrimeVue Aura + Lucide** — most eye-pleasing for a warm hotel `#8B5A2B`. |
-| 2026-10-08 | Rafie | **"agreed! document it!"** → locked in `08-dependencies.md` |
+| 2026-10-08 | Agent | Best choice: **Tailwind + PrimeVue Aura + Lucide**, most eye-pleasing for a warm hotel `#8B5A2B`. |
+| 2026-10-08 | Rafie | **"agreed, document it"** → locked in `08-dependencies.md` |
 ## Locked Decisions (Do Not Change Without Discussion)
-1. **Single hotel** — not multi-hotel in v1.
-2. **Complete feature level** — but implemented incrementally, not all at once.
-3. **4 roles** — details in `04-roles-permissions.md`.
-4. **Manual transfer** — proof upload + admin verification.
-5. **Availability mandatory** — must be ACID, prevent double bookings.
-6. **No Next.js** — respect user preference.
-7. **Local-first on M4** — no Docker, using local Postgres/MySQL.
-8. **Free portfolio** — no deadline, no manager, quality > speed.
+1. **Single hotel**, not multi-hotel in v1.
+2. **Complete feature level**, but implemented incrementally, not all at once.
+3. **4 roles**, details in `04-roles-permissions.md`.
+4. **Manual transfer**, proof upload + admin verification.
+5. **Availability mandatory**, must be ACID, prevent double bookings.
+6. **No Next.js**, respect user preference.
+7. **Local-first on M4**, no Docker, using local Postgres/MySQL.
+8. **Free portfolio**, no deadline, no manager, quality > speed.
 
 ## Open Questions (Needs Further Grilling)
-- Q1: What stack replaces Next.js? (Laravel vs Nuxt vs SvelteKit vs Dart Frog) — see `03-tech-stack-decision.md`
-- Q3: Who are the 4 roles? What are each role's permissions? — see `04-roles-permissions.md`
-- Q5: Room types & pricing — agent has creative freedom, but needs user validation
-- Q6: Availability rules — minimum nights, check-in/out times?
+- Q1: What stack replaces Next.js? (Laravel vs Nuxt vs SvelteKit vs Dart Frog), see `03-tech-stack-decision.md`
+- Q3: Who are the 4 roles? What are each role's permissions?, see `04-roles-permissions.md`
+- Q5: Room types & pricing, agent has creative freedom, but needs user validation
+- Q6: Availability rules, minimum nights, check-in/out times?
 
 ## Factual Audit (Result of `bash` 2026-10-08)
 ```
@@ -71,4 +71,4 @@ MB Air M4, local only
 - `docs/05-booking-flow-and-edge-cases.md`
 - `docs/06-context-and-constraints.md`
 
-> All files above are the **source of truth** for Phase 0. If there is a conflict, ask Rafie first — don't assume.
+> All files above are the **source of truth** for Phase 0. If there is a conflict, ask Rafie first, don't assume.

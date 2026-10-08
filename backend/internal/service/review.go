@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	ErrRatingBounds   = errors.New("rating must be between 1 and 5")
-	ErrCommentTooLong = errors.New("comment must be at most 500 characters")
-	ErrNotCheckedOut  = errors.New("can only review checked_out bookings")
-	ErrForbidden      = errors.New("forbidden: booking does not belong to user")
-	ErrAlreadyReviewed = errors.New("booking already reviewed")
+	ErrRatingBounds    = errors.New("Rating must be 1 to 5. Please choose a rating from 1 to 5")
+	ErrCommentTooLong  = errors.New("Comment is too long. Keep it to 500 characters or fewer")
+	ErrNotCheckedOut   = errors.New("You can only review stays you have checked out from. Complete your stay first")
+	ErrForbidden       = errors.New("You can only review your own bookings")
+	ErrAlreadyReviewed = errors.New("You already reviewed this booking")
 )
 
 type ReviewService struct {
@@ -40,7 +40,7 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID, bookingID int6
 	booking, err := s.BookingRepo.GetByID(bookingID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("booking not found")
+			return nil, errors.New("Booking not found")
 		}
 		return nil, err
 	}

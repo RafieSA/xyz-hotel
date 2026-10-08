@@ -1,12 +1,12 @@
-# 07 — Design Guidelines (UI/UX Manual for Agentic AI Coding)
+# 07: Design Guidelines (UI/UX Manual for Agentic Coding)
 
-> Every agent MUST read this guide before coding UI. Goal: consistent, well-crafted, beginner-friendly results.
+> Read this before you write any UI. It keeps the hotel warm, consistent, and trusted across every page.
 
 ## 1. Brand & Hotel Theme
 
-**Concept:** A modern 3-star hotel — warm, premium yet grounded. Not overly luxurious, not rigidly minimal. Target audience: families & travelers seeking comfort.
+**Concept:** A modern 3-star hotel, warm, premium yet grounded. Not overly luxurious, not rigidly minimal. Target audience: families & travelers seeking comfort.
 
-**Visual inspiration:** Warm wood + clean white + gold accents — like a calm & trustworthy hotel in Bali/Ubud.
+**Visual inspiration:** Warm wood + clean white + gold accents, like a calm & trustworthy hotel in Bali/Ubud.
 
 ## 2. Color Palette (Hex Codes Locked)
 
@@ -26,7 +26,7 @@
 | **Neutral 50** | `#F9FAFB` | Page background | |
 
 **Rules:**
-- Do not use blue `#0A369D` (that belongs to xyz-haircut) — xyz-hotel uses warm brown.
+- Do not use blue `#0A369D` (that belongs to xyz-haircut), xyz-hotel uses warm brown.
 - Minimum contrast ratio 4.5:1 for text (WCAG AA).
 - Maximum 3 dominant colors per page: Primary + Secondary + Neutral.
 
@@ -132,12 +132,12 @@
 ## 9. Implementation Example (Tailwind)
 
 ```html
-<!-- Primary Button -->
+<.-- Primary Button -->
 <button class="bg-[#8B5A2B] hover:bg-[#6F4620] text-white font-semibold px-6 py-3 rounded-xl transition-colors disabled:opacity-50">
   Book Now
 </button>
 
-<!-- Room Card -->
+<.-- Room Card -->
 <div class="bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden">
   <img src="deluxe.jpg" alt="Deluxe Room" class="w-full aspect-[16/9] object-cover" />
   <div class="p-4 space-y-2">

@@ -33,7 +33,7 @@ func parseReportRange(fromStr, toStr string) (time.Time, time.Time, error) {
 	} else {
 		from, err = time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid from date")
+			return time.Time{}, time.Time{}, fmt.Errorf("Start date is invalid. Use YYYY-MM-DD format")
 		}
 	}
 	if toStr == "" {
@@ -41,7 +41,7 @@ func parseReportRange(fromStr, toStr string) (time.Time, time.Time, error) {
 	} else {
 		to, err = time.Parse("2006-01-02", toStr)
 		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid to date")
+			return time.Time{}, time.Time{}, fmt.Errorf("End date is invalid. Use YYYY-MM-DD format")
 		}
 	}
 	if from.After(to) {

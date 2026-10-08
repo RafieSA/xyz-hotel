@@ -37,14 +37,14 @@ type CreateVoucherRequest struct {
 func (h *VoucherHandler) CreateVoucher(c *fiber.Ctx) error {
 	var req CreateVoucherRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid JSON body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please check your voucher details and try again", "details": err.Error()})
 	}
 	code := strings.TrimSpace(req.Code)
 	if code == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "voucher code is required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Voucher code is required"})
 	}
 
 	v := &model.Voucher{
@@ -57,7 +57,7 @@ func (h *VoucherHandler) CreateVoucher(c *fiber.Ctx) error {
 		// Try RFC3339 then date-only fallback.
 		t, err := parseVoucherTime(strings.TrimSpace(*req.ExpiresAt))
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid expires_at format, use RFC3339"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Expiry date is invalid. Use YYYY-MM-DD or RFC3339 format"})
 		}
 		v.ExpiresAt = t
 	}
@@ -68,11 +68,11 @@ func (h *VoucherHandler) CreateVoucher(c *fiber.Ctx) error {
 		if strings.Contains(msg, "already exists") {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
 		}
-		if strings.Contains(msg, "validation") || strings.Contains(msg, "discount must") || strings.Contains(msg, "required") {
+		if strings.Contains(msg, "required") || strings.Contains(msg, "Discount") || strings.Contains(msg, "Quota") || strings.Contains(msg, "Please check") || strings.Contains(msg, "discount") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		slog.Error("create voucher failed", "err", err, "code", code)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to create voucher"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not create the voucher. Please try again"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": created})
 }
@@ -82,7 +82,7 @@ func (h *VoucherHandler) ListVouchers(c *fiber.Ctx) error {
 	list, err := h.Vouchers.ListVouchers(c.Context())
 	if err != nil {
 		slog.Error("list vouchers failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to list vouchers"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load vouchers. Please try again"})
 	}
 	return c.JSON(fiber.Map{"data": list})
 }
@@ -91,20 +91,20 @@ func (h *VoucherHandler) ListVouchers(c *fiber.Ctx) error {
 func (h *VoucherHandler) ValidateVoucher(c *fiber.Ctx) error {
 	code := strings.TrimSpace(c.Query("code"))
 	if code == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "code query param is required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Voucher code is required"})
 	}
 	roomTypeIDStr := c.Query("room_type_id")
 	if roomTypeIDStr == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "room_type_id query param is required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Room type is required to validate voucher"})
 	}
 	roomTypeID, err := strconv.ParseInt(roomTypeIDStr, 10, 64)
 	if err != nil || roomTypeID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid room_type_id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Room type is invalid"})
 	}
 	checkIn := strings.TrimSpace(c.Query("check_in"))
 	checkOut := strings.TrimSpace(c.Query("check_out"))
 	if checkIn == "" || checkOut == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "check_in and check_out are required (YYYY-MM-DD)"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Check in and check out dates are required. Use YYYY-MM-DD"})
 	}
 
 	result, err := h.Vouchers.ValidateAndApply(c.Context(), code, roomTypeID, checkIn, checkOut)
@@ -113,9 +113,9 @@ func (h *VoucherHandler) ValidateVoucher(c *fiber.Ctx) error {
 		switch {
 		case strings.Contains(msg, "not found"):
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
-		case strings.Contains(msg, "expired"), strings.Contains(msg, "quota exceeded"), strings.Contains(msg, "minimum"):
+		case strings.Contains(msg, "expired"), strings.Contains(msg, "usage limit"), strings.Contains(msg, "quota exceeded"), strings.Contains(msg, "needs at least"), strings.Contains(msg, "minimum"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
-		case strings.Contains(msg, "invalid check"), strings.Contains(msg, "must be after"):
+		case strings.Contains(msg, "Check in date is invalid"), strings.Contains(msg, "Check out date is invalid"), strings.Contains(msg, "Check out must be after"), strings.Contains(msg, "invalid check"), strings.Contains(msg, "must be after"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		slog.Error("voucher validate failed", "err", err, "code", code)
@@ -150,5 +150,5 @@ func parseVoucherTime(s string) (*time.Time, error) {
 	if t, err := time.Parse("2006-01-02T15:04:05", s); err == nil {
 		return &t, nil
 	}
-	return nil, fmt.Errorf("invalid time")
+	return nil, fmt.Errorf("Expiry date is invalid. Use YYYY-MM-DD or RFC3339 format")
 }

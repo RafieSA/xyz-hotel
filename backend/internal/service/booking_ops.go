@@ -48,23 +48,23 @@ func (s *BookingOpsService) CheckIn(ctx context.Context, bookingID int64, actorI
 	if err != nil {
 		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("booking not found")
+			return nil, fmt.Errorf("Booking not found")
 		}
 		return nil, err
 	}
 	if booking.Status != model.BookingVerified {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("booking status must be verified to check-in, got %s", booking.Status)
+		return nil, fmt.Errorf("Only verified bookings can be checked in. Current status is %s", booking.Status)
 	}
 	if booking.RoomUnitID != nil {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("booking already has room unit assigned")
+		return nil, fmt.Errorf("This booking already has a room assigned")
 	}
 
 	unitID, err := s.RoomRepo.FindAvailableUnitForTypeTx(ctx, tx, booking.RoomTypeID)
 	if err != nil {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("no available units: %w", err)
+		return nil, fmt.Errorf("No rooms available to assign right now. Mark a room as available and try again: %w", err)
 	}
 
 	// Update booking
@@ -117,17 +117,17 @@ func (s *BookingOpsService) CheckOut(ctx context.Context, bookingID int64, actor
 	if err != nil {
 		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("booking not found")
+			return nil, fmt.Errorf("Booking not found")
 		}
 		return nil, err
 	}
 	if booking.Status != model.BookingCheckedIn {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("booking status must be checked_in to check-out, got %s", booking.Status)
+		return nil, fmt.Errorf("Only checked in bookings can be checked out. Current status is %s", booking.Status)
 	}
 	if booking.RoomUnitID == nil {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("booking has no room unit assigned")
+		return nil, fmt.Errorf("This booking has no room assigned")
 	}
 	unitID := *booking.RoomUnitID
 
@@ -188,7 +188,7 @@ var ValidRoomStatuses = map[string]bool{
 // UpdateRoomUnitStatus updates room unit status with validation and audit. Uses transaction with FOR UPDATE.
 func (s *BookingOpsService) UpdateRoomUnitStatus(ctx context.Context, unitID int64, newStatus string, actorID int64) (*model.RoomUnit, error) {
 	if !ValidRoomStatuses[newStatus] {
-		return nil, fmt.Errorf("invalid status: must be one of available, occupied, dirty, maintenance")
+		return nil, fmt.Errorf("Status is invalid. Choose available, occupied, dirty or maintenance")
 	}
 	tx, err := s.DB.BeginTxx(ctx, nil)
 	if err != nil {
@@ -205,19 +205,18 @@ func (s *BookingOpsService) UpdateRoomUnitStatus(ctx context.Context, unitID int
 	if err != nil {
 		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("room unit not found")
+			return nil, fmt.Errorf("Room not found")
 		}
 		return nil, err
 	}
 	if unit.Status == newStatus {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("room unit already %s", newStatus)
+		return nil, fmt.Errorf("Room is already %s", newStatus)
 	}
 	if !IsValidRoomStatusTransition(unit.Status, newStatus) {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("invalid transition from %s to %s", unit.Status, newStatus)
+		return nil, fmt.Errorf("Cannot change room from %s to %s", unit.Status, newStatus)
 	}
-
 	if err := s.RoomRepo.UpdateStatusTx(ctx, tx, unitID, newStatus); err != nil {
 		_ = tx.Rollback()
 		return nil, err

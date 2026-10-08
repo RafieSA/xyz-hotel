@@ -1,6 +1,6 @@
-# 12 — Phase 4: Reviews, Reports & Dashboard Polish (COMPLETE 2026-10-08)
+# 12: Phase 4 Reviews, Reports and Dashboard Polish (Complete 2026-10-08)
 
-> Reviews (one per checked_out), reports (occupancy/revenue), and beautiful WarmAura dashboard with stats cards + charts. Live verified.
+> Reviews limited to one per checked out booking, occupancy and revenue reports, and a WarmAura dashboard with stats cards and charts. Live verified.
 
 ## Summary
 
@@ -11,7 +11,7 @@
 | **Reports API** | ✅ GET /api/admin/reports/summary|revenue|occupancy | Occupancy rate, revenue, by_status, by_room_type, per-day, RBAC owner/manager, date range validation |
 | **Frontend Polish** | ✅ AdminView stats + charts | 4 stats cards (Lucide), DatePicker range, 3 Chart.js charts WarmAura #8B5A2B, HomeView stars + review form, MyBookings, build 2044→354KB OK |
 | **Builds** | ✅ go vet 0, go test ok, npm build 392ms | service+handler tests pass |
-| **Live Flow** | ✅ create→upload→verify→checkin→checkout→review | Booking 35: 700k → waiting → verified → checked_in unit 2 → checked_out → review 5 “Amazing stay!” |
+| **Live Flow** | ✅ create→upload→verify→checkin→checkout→review | Booking 35: 700k → waiting → verified → checked_in unit 2 → checked_out → review 5 “Amazing stay.” |
 
 ## Reviews
 
@@ -21,7 +21,7 @@ CREATE TABLE reviews (id BIGSERIAL PK, booking_id UNIQUE FK bookings, user_id FK
 ALTER TABLE room_types ADD avg_rating DOUBLE PRECISION DEFAULT 0, review_count INT DEFAULT 0;
 ```
 
-**Repo `review.go`:** Create, FindByBookingID, ListByRoomType, UpdateRoomTypeStats (AVG + COUNT), GetAverageByRoomType — $1 safe.
+**Repo `review.go`:** Create, FindByBookingID, ListByRoomType, UpdateRoomTypeStats (AVG + COUNT), GetAverageByRoomType, $1 safe.
 
 **Service `review.go`:** CreateReview validates: rating 1-5, comment ≤500, booking exists, booking.user_id == userID else 403, booking.status == checked_out else 409, one per booking (UNIQUE constraint → 409), then INSERT + UPDATE room_types avg_rating/review_count.
 
@@ -34,7 +34,7 @@ ALTER TABLE room_types ADD avg_rating DOUBLE PRECISION DEFAULT 0, review_count I
 
 **Live:**
 ```bash
-POST /api/reviews {"booking_id":35,"rating":5,"comment":"Amazing stay!"} → 201 {"id":1}
+POST /api/reviews {"booking_id":35,"rating":5,"comment":"Amazing stay."} → 201 {"id":1}
 GET /api/reviews?room_type_id=1 → [{"rating":5}]
 GET /api/room-types → Standard avg_rating 5 review_count 1
 ```
@@ -93,7 +93,7 @@ curl GET /api/admin/reports/summary → revenue 700k
 ```bash
 cd backend && go run ./cmd/server  # :8080
 # Review after checkout
-curl -X POST :8080/api/reviews -H "Bearer $CUSTOMER" -d '{"booking_id":35,"rating":5,"comment":"Amazing!"}'
+curl -X POST :8080/api/reviews -H "Bearer $CUSTOMER" -d '{"booking_id":35,"rating":5,"comment":"Amazing."}'
 # Reports
 curl :8080/api/admin/reports/summary?from=2026-10-01&to=2026-10-31 -H "Bearer $OWNER"
 cd frontend && npm run dev  # :5173 AdminView stats + charts

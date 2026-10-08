@@ -30,11 +30,11 @@ func Auth(secret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		h := c.Get("Authorization")
 		if h == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "missing Authorization header"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in. No authorization found"})
 		}
 		parts := strings.SplitN(h, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "invalid Authorization format"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Authorization format is incorrect. Use Bearer token"})
 		}
 		tokenStr := parts[1]
 
@@ -49,7 +49,7 @@ func Auth(secret string) fiber.Handler {
 		if err == nil && token.Valid {
 			// Reject refresh tokens for auth-guarded routes (only access allowed)
 			if sClaims.TokenType == "refresh" {
-				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "refresh token not allowed"})
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Refresh tokens cannot access this. Please sign in again"})
 			}
 			if sClaims.TokenType != "" && sClaims.TokenType != "access" {
 				// unknown typ, allow if not refresh but check expiry already done
@@ -70,7 +70,7 @@ func Auth(secret string) fiber.Handler {
 			return []byte(secret), nil
 		})
 		if err2 != nil || !token2.Valid {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "invalid or expired token"})
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Your session expired or token is invalid. Please sign in again"})
 		}
 		c.Locals("user_id", claims.UserID)
 		c.Locals("role", claims.Role)
@@ -79,7 +79,6 @@ func Auth(secret string) fiber.Handler {
 		return c.Next()
 	}
 }
-
 // OptionalAuth tries to parse token if present, but doesn't block.
 func OptionalAuth(secret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {

@@ -23,10 +23,30 @@ func parseRange(c *fiber.Ctx) (string, string) {
 
 func reportError(c *fiber.Ctx, err error) error {
 	msg := err.Error()
-	if strings.Contains(msg, "invalid") || strings.Contains(msg, "from must be") {
+	if msg == "from must be before or equal to to" {
+		msg = "Start date must be before or on end date"
+	}
+	if msg == "invalid from date" {
+		msg = "Start date is invalid. Use YYYY-MM-DD format"
+	}
+	if msg == "invalid to date" {
+		msg = "End date is invalid. Use YYYY-MM-DD format"
+	}
+	if containsReport(msg, "Start date is invalid") || containsReport(msg, "End date is invalid") || containsReport(msg, "Start date must be") || containsReport(msg, "invalid") || containsReport(msg, "from must be") || containsReport(msg, "Start date") || containsReport(msg, "End date") {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 	}
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to generate report"})
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not generate the report. Please try again"})
+}
+
+func containsReport(s, sub string) bool {
+	return len(s) >= len(sub) && (func() bool {
+		for i := 0; i <= len(s)-len(sub); i++ {
+			if s[i:i+len(sub)] == sub {
+				return true
+			}
+		}
+		return false
+	})()
 }
 
 // GetSummary handles GET /api/admin/reports/summary?from&to
@@ -58,7 +78,7 @@ func (h *ReportHandler) GetRevenue(c *fiber.Ctx) error {
 	}
 	rev, err := h.Reports.GetRevenue(c.Context(), from, to)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to calculate revenue"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not calculate revenue. Please try again"})
 	}
 	perDay, _ := h.Reports.ReportRepo.RevenuePerDay(c.Context(), from, to)
 	return c.JSON(fiber.Map{
@@ -78,7 +98,7 @@ func (h *ReportHandler) GetOccupancy(c *fiber.Ctx) error {
 	}
 	rate, err := h.Reports.GetOccupancyRate(c.Context(), from, to)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to calculate occupancy"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not calculate occupancy. Please try again"})
 	}
 	perDay, _ := h.Reports.ReportRepo.OccupancyPerDay(c.Context(), from, to)
 	// enrich rate per day

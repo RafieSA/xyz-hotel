@@ -67,30 +67,29 @@ func (h *BookingHandler) GetAvailability(c *fiber.Ctx) error {
 	checkOut := c.Query("check_out")
 
 	if roomTypeIDStr == "" || checkIn == "" || checkOut == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "room_type_id, check_in (YYYY-MM-DD), check_out (YYYY-MM-DD) are required"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Room type, check in and check out dates are required. Use YYYY-MM-DD for dates"})
 	}
 	roomTypeID, err := strconv.ParseInt(roomTypeIDStr, 10, 64)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid room_type_id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Room type is invalid. Please choose a valid room type"})
 	}
 
 	result, err := h.Availability.CheckAvailability(c.Context(), roomTypeID, checkIn, checkOut)
 	if err != nil {
-		// SQL no rows => 404
-		if err.Error() == "room type not found" {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": err.Error()})
+		msg := err.Error()
+		if contains(msg, "Room type not found") || contains(msg, "room type not found") {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
 		}
-		if err.Error() == "check_out must be after check_in" || err.Error() == "invalid check_in format, expected YYYY-MM-DD" || err.Error() == "invalid check_out format, expected YYYY-MM-DD" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error()})
+		if contains(msg, "Check out must be after") || contains(msg, "check_out must be after") || contains(msg, "Check in date is invalid") || contains(msg, "Check out date is invalid") || contains(msg, "invalid check") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		slog.Error("availability check failed", "err", err, "room_type_id", roomTypeID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "internal error"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not check availability. Please try again"})
 	}
 	return c.JSON(fiber.Map{
 		"data": result,
 	})
 }
-
 // CreateBookingRequest validation struct.
 type CreateBookingRequest struct {
 	RoomTypeID  int64  `json:"room_type_id" validate:"required"`
@@ -118,46 +117,46 @@ func (h *BookingHandler) CreateBooking(c *fiber.Ctx) error {
 		}
 	}
 	if !ok || userID == 0 {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized: missing user"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to book"})
 	}
 
 	var req CreateBookingRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid JSON body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please check your booking details and try again", "details": err.Error()})
 	}
 	booking, err := h.Availability.CreateBooking(c.Context(), userID, req.RoomTypeID, req.CheckIn, req.CheckOut, req.Guests, req.VoucherCode)
 	if err != nil {
 		msg := err.Error()
-		switch msg {
-		case "room type not found", "voucher not found":
+		if contains(msg, "Room type not found") || contains(msg, "room type not found") || contains(msg, "Voucher code not found") || contains(msg, "voucher not found") {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
-		case "no available units for selected dates":
+		}
+		if contains(msg, "No rooms available") || contains(msg, "no available units") {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
-		case "voucher expired", "voucher quota exceeded":
+		}
+		if contains(msg, "expired") || contains(msg, "usage limit") || contains(msg, "quota exceeded") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
-		if msg == "check_out must be after check_in" || msg == "invalid check_in format, expected YYYY-MM-DD" || msg == "invalid check_out format, expected YYYY-MM-DD" || msg == "guests must be >=1" {
+		if contains(msg, "Check out must be after") || contains(msg, "check_out must be after") || contains(msg, "Check in date is invalid") || contains(msg, "Check out date is invalid") || contains(msg, "invalid check") || contains(msg, "Guests must be") || contains(msg, "guests must be") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		// capacity exceeded etc.
-		if contains(msg, "guests exceeds") {
+		if contains(msg, "Too many guests") || contains(msg, "guests exceeds") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
-		if contains(msg, "voucher requires minimum") {
+		if contains(msg, "needs at least") || contains(msg, "voucher requires minimum") || contains(msg, "minimum") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
-		if contains(msg, "voucher") {
+		if contains(msg, "voucher") || contains(msg, "Voucher") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		slog.Error("create booking failed", "err", err, "user_id", userID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "internal error"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not create your booking. Please try again"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": booking})
 }
-
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (func() bool {
 		for i := 0; i <= len(s)-len(sub); i++ {
@@ -183,7 +182,7 @@ func (h *BookingHandler) ListBookings(c *fiber.Ctx) error {
 	case float64:
 		userID = int64(v)
 	default:
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to view bookings"})
 	}
 
 	isAdmin := roleVal == "owner" || roleVal == "manager" || roleVal == "receptionist"
@@ -192,7 +191,7 @@ func (h *BookingHandler) ListBookings(c *fiber.Ctx) error {
 		list, err := h.BookingRepo.ListAll()
 		if err != nil {
 			slog.Error("list all bookings failed", "err", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "internal error"})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load bookings. Please try again"})
 		}
 		return c.JSON(fiber.Map{"data": list})
 	}
@@ -200,7 +199,7 @@ func (h *BookingHandler) ListBookings(c *fiber.Ctx) error {
 	list, err := h.BookingRepo.ListByUser(userID)
 	if err != nil {
 		slog.Error("list user bookings failed", "err", err, "user_id", userID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "internal error"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load your bookings. Please try again"})
 	}
 	return c.JSON(fiber.Map{"data": list})
 }
@@ -240,14 +239,14 @@ func getAuthUserID(c *fiber.Ctx) (int64, bool) {
 // Exported for unit testing.
 func ValidateProofFile(filename string, size int64, header []byte) error {
 	if size > maxProofSize {
-		return fmt.Errorf("file too large: max 5MB")
+		return fmt.Errorf("File is too large. Maximum size is 5MB")
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
 	if !allowedExts[ext] {
-		return fmt.Errorf("invalid file extension: allowed .jpg .jpeg .png .pdf")
+		return fmt.Errorf("Unsupported file type. Use JPG, PNG or PDF")
 	}
 	if len(header) == 0 {
-		return fmt.Errorf("empty file")
+		return fmt.Errorf("File is empty. Please choose a file with content")
 	}
 	// MIME via magic
 	isJPEG := len(header) >= 3 && header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF
@@ -257,69 +256,68 @@ func ValidateProofFile(filename string, size int64, header []byte) error {
 	switch ext {
 	case ".jpg", ".jpeg":
 		if !isJPEG {
-			return fmt.Errorf("invalid file content: expected JPEG magic")
+			return fmt.Errorf("File does not look like a valid JPG. Please upload a real JPG image")
 		}
 	case ".png":
 		if !isPNG {
-			return fmt.Errorf("invalid file content: expected PNG magic")
+			return fmt.Errorf("File does not look like a valid PNG. Please upload a real PNG image")
 		}
 	case ".pdf":
 		if !isPDF {
-			return fmt.Errorf("invalid file content: expected PDF magic")
+			return fmt.Errorf("File does not look like a valid PDF. Please upload a real PDF file")
 		}
 	}
 	// generic fallback if none matched (should not happen)
 	if !(isJPEG || isPNG || isPDF) {
-		return fmt.Errorf("invalid file type: only jpg/png/pdf allowed")
+		return fmt.Errorf("Only JPG, PNG and PDF files are allowed")
 	}
 	return nil
 }
-
 // UploadProof handles POST /api/bookings/:id/proof multipart/form-data proof file.
 // Auth required, IDOR check booking.user_id == auth.id, size <=5MB, ext + magic validation, save to storage/uploads/bookings/{id}_{uuid}.ext
 func (h *BookingHandler) UploadProof(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to upload proof"})
 	}
 	idStr := c.Params("id")
 	bookingID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || bookingID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid booking id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Booking ID is invalid"})
 	}
 	if h.BookingRepo == nil || h.BookingRepo.DB == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "db not connected"})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 	}
 	booking, err := h.BookingRepo.GetByID(bookingID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "booking not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Booking not found"})
 	}
 	// IDOR check
 	if booking.UserID != userID {
 		slog.Warn("idor blocked: proof upload", "booking_id", bookingID, "owner", booking.UserID, "requester", userID)
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "forbidden: not your booking"})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "You can only upload proof for your own bookings"})
 	}
 	if booking.Status != model.BookingPendingPayment {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "booking status must be pending_payment to upload proof"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "This booking cannot accept proof right now. It must be waiting for payment"})
 	}
 
 	fileHeader, err := c.FormFile("proof")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "proof file required (field: proof)"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please attach your payment proof in the proof field"})
 	}
 	// Enforce size before reading
 	if fileHeader.Size > maxProofSize {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "file too large: max 5MB"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "File is too large. Maximum size is 5MB"})
 	}
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if !allowedExts[ext] {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid file extension: allowed .jpg .jpeg .png .pdf"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Unsupported file type. Use JPG, PNG or PDF"})
 	}
 
 	// Read header for magic validation (first 512 bytes)
 	f, err := fileHeader.Open()
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "failed to read file"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your file. Please try again"})
 	}
 	defer f.Close()
 	header := make([]byte, 512)
@@ -341,24 +339,24 @@ func (h *BookingHandler) UploadProof(c *fiber.Ctx) error {
 	fullPath := filepath.Join(baseDir, relPath)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		slog.Error("mkdir uploads failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to save file"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not save your file. Please try again"})
 	}
 	// Save file: reopen to read from start
 	_ = f.Close()
 	f2, err := fileHeader.Open()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to read file"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not read your file. Please try again"})
 	}
 	defer f2.Close()
 	out, err := os.Create(fullPath)
 	if err != nil {
 		slog.Error("create proof file failed", "err", err, "path", fullPath)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to save file"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not save your file. Please try again"})
 	}
 	defer out.Close()
 	if _, err := io.Copy(out, f2); err != nil {
 		slog.Error("copy proof file failed", "err", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to save file"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not save your file. Please try again"})
 	}
 
 	// Update booking proof_url + status pending_payment→waiting_verification
@@ -366,7 +364,7 @@ func (h *BookingHandler) UploadProof(c *fiber.Ctx) error {
 	if err != nil {
 		slog.Error("update proof_url failed", "err", err, "booking_id", bookingID)
 		_ = os.Remove(fullPath)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to update booking"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not update your booking. Please try again"})
 	}
 
 	// Audit log
@@ -379,9 +377,8 @@ func (h *BookingHandler) UploadProof(c *fiber.Ctx) error {
 		userID, "booking.proof_upload", "bookings", bookingID, string(payload))
 	slog.Info("proof uploaded", "booking_id", bookingID, "user_id", userID, "proof_url", relPath)
 
-	return c.JSON(fiber.Map{"message": "proof uploaded", "proof_url": relPath, "data": updated})
+	return c.JSON(fiber.Map{"message": "Payment proof uploaded. We will verify it shortly", "proof_url": relPath, "data": updated})
 }
-
 // VerifyRequest body for PATCH /api/admin/bookings/:id/verify
 type VerifyRequest struct {
 	Action       string  `json:"action" validate:"required,oneof=verified rejected"`
@@ -393,39 +390,39 @@ type VerifyRequest struct {
 func (h *BookingHandler) VerifyBooking(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to verify bookings"})
 	}
 	role, _ := c.Locals("role").(string)
 	if role != model.RoleOwner && role != model.RoleManager {
 		slog.Warn("bfla blocked: verify", "role", role, "user_id", userID)
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "forbidden: insufficient role"})
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"message": "You do not have permission to verify bookings"})
 	}
 	idStr := c.Params("id")
 	bookingID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || bookingID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid booking id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Booking ID is invalid"})
 	}
 	if h.BookingRepo == nil || h.BookingRepo.DB == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "db not connected"})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 	}
 	var req VerifyRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid JSON body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please choose verified or rejected", "details": err.Error()})
 	}
 	if req.Action == "rejected" {
 		if req.RejectReason == nil || strings.TrimSpace(*req.RejectReason) == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "reject_reason required when rejecting"})
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please provide a reason when rejecting a booking"})
 		}
 	}
 	booking, err := h.BookingRepo.GetByID(bookingID)
 	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "booking not found"})
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Booking not found"})
 	}
 	if booking.Status != model.BookingWaitingVerification {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "booking status must be waiting_verification"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "This booking is not ready for verification. It must be waiting for verification"})
 	}
 	var newStatus string
 	var rejectReason *string
@@ -439,7 +436,7 @@ func (h *BookingHandler) VerifyBooking(c *fiber.Ctx) error {
 	updated, err := h.BookingRepo.UpdateStatus(bookingID, newStatus, rejectReason)
 	if err != nil {
 		slog.Error("verify update failed", "err", err, "booking_id", bookingID)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "failed to update booking"})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not update the booking. Please try again"})
 	}
 	payload, _ := json.Marshal(map[string]interface{}{
 		"action":        req.Action,
@@ -450,73 +447,76 @@ func (h *BookingHandler) VerifyBooking(c *fiber.Ctx) error {
 	_, _ = h.BookingRepo.DB.Exec(`INSERT INTO audit_logs (user_id, action, entity, entity_id, payload) VALUES ($1,$2,$3,$4,$5::jsonb)`,
 		userID, "booking.verify", "bookings", bookingID, string(payload))
 	slog.Info("booking verified", "booking_id", bookingID, "action", req.Action, "by", userID, "role", role)
-	return c.JSON(fiber.Map{"message": "booking " + req.Action, "data": updated})
+	if req.Action == "verified" {
+		return c.JSON(fiber.Map{"message": "Booking verified successfully", "data": updated})
+	}
+	return c.JSON(fiber.Map{"message": "Booking rejected", "data": updated})
 }
 
 // CheckIn handles PATCH /api/admin/bookings/:id/checkin (owner/manager/receptionist)
 func (h *BookingHandler) CheckIn(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to check in guests"})
 	}
 	idStr := c.Params("id")
 	bookingID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || bookingID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid booking id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Booking ID is invalid"})
 	}
 	if h.BookingOps == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "ops not configured"})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 	}
 	updated, err := h.BookingOps.CheckIn(c.Context(), bookingID, userID)
 	if err != nil {
 		msg := err.Error()
 		switch {
-		case msg == "booking not found":
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
-		case contains(msg, "must be verified"):
+		case contains(msg, "Booking not found") || msg == "booking not found":
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Booking not found"})
+		case contains(msg, "Only verified bookings") || contains(msg, "must be verified"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
-		case contains(msg, "no available units"):
+		case contains(msg, "No rooms available") || contains(msg, "no available units"):
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
-		case contains(msg, "already has room"):
+		case contains(msg, "already has a room") || contains(msg, "already has room"):
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"message": msg})
 		default:
 			slog.Error("checkin failed", "err", err, "booking_id", bookingID)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": msg})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not check in the guest. Please try again"})
 		}
 	}
-	return c.JSON(fiber.Map{"message": "checked in", "data": updated})
+	return c.JSON(fiber.Map{"message": "Guest checked in successfully", "data": updated})
 }
 
 // CheckOut handles PATCH /api/admin/bookings/:id/checkout (owner/manager/receptionist)
 func (h *BookingHandler) CheckOut(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to check out guests"})
 	}
 	idStr := c.Params("id")
 	bookingID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || bookingID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid booking id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Booking ID is invalid"})
 	}
 	if h.BookingOps == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "ops not configured"})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 	}
 	updated, err := h.BookingOps.CheckOut(c.Context(), bookingID, userID)
 	if err != nil {
 		msg := err.Error()
 		switch {
-		case msg == "booking not found":
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
-		case contains(msg, "must be checked_in"):
+		case contains(msg, "Booking not found") || msg == "booking not found":
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Booking not found"})
+		case contains(msg, "Only checked in") || contains(msg, "must be checked_in"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
-		case contains(msg, "no room unit"):
+		case contains(msg, "no room") || contains(msg, "has no room"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		default:
 			slog.Error("checkout failed", "err", err, "booking_id", bookingID)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": msg})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not check out the guest. Please try again"})
 		}
 	}
-	return c.JSON(fiber.Map{"message": "checked out", "data": updated})
+	return c.JSON(fiber.Map{"message": "Guest checked out successfully", "data": updated})
 }
 
 // UpdateRoomUnitStatusRequest for PATCH /api/admin/room-units/:id/status
@@ -528,37 +528,39 @@ type UpdateRoomUnitStatusRequest struct {
 func (h *BookingHandler) UpdateRoomUnitStatus(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "unauthorized"})
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"message": "Please sign in to update room status"})
 	}
 	idStr := c.Params("id")
 	unitID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || unitID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid unit id"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Room ID is invalid"})
 	}
 	var req UpdateRoomUnitStatusRequest
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "invalid JSON body"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "We could not read your request. Check the format and try again"})
 	}
 	if err := h.Validator.Struct(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "validation failed", "details": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please choose available, occupied, dirty or maintenance", "details": err.Error()})
 	}
 	if h.BookingOps == nil {
-		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "ops not configured"})
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 	}
 	updated, err := h.BookingOps.UpdateRoomUnitStatus(c.Context(), unitID, req.Status, userID)
 	if err != nil {
 		msg := err.Error()
 		switch {
-		case msg == "room unit not found":
+		case contains(msg, "Room not found") || msg == "room unit not found":
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": msg})
-		case contains(msg, "invalid transition"), contains(msg, "already"):
+		case contains(msg, "Room is already") || contains(msg, "already"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
-		case contains(msg, "invalid status"):
+		case contains(msg, "Cannot change room") || contains(msg, "invalid transition"):
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
+		case contains(msg, "Status is invalid") || contains(msg, "invalid status"):
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		default:
 			slog.Error("update unit status failed", "err", err, "unit_id", unitID)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": msg})
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not update the room. Please try again"})
 		}
 	}
-	return c.JSON(fiber.Map{"message": "room unit updated", "data": updated})
+	return c.JSON(fiber.Map{"message": "Room status updated", "data": updated})
 }

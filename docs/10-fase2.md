@@ -1,6 +1,6 @@
-# 10 — Phase 2: Database, Auth & Availability (COMPLETE 2026-10-08)
+# 10: Phase 2 Database, Auth and Availability (Complete 2026-10-08)
 
-> One full round: DB migration + seed + JWT auth (4 roles) + availability with FOR UPDATE + booking create + frontend wiring. Verified with live curl and builds.
+> One full round shipped: DB migration and seed, JWT auth for 4 roles, availability with FOR UPDATE, booking create, and frontend wiring. Verified with live curl and builds.
 
 ## Summary
 
@@ -53,10 +53,10 @@ psql xyz_hotel -c "SELECT count(*) FROM users"       # 4
 ## Auth Backend
 
 **Endpoints:**
-- `POST /api/auth/register` → 201 {access_token, refresh_token, user} — role forced `customer`, password min 8, email unique via $1
-- `POST /api/auth/login` → 200 {access_token, refresh_token, user} — bcrypt Compare
-- `POST /api/auth/refresh` → 200 {access_token, refresh_token} — validates typ=refresh
-- `GET /api/auth/me` → 200 {user} — requires Bearer access token
+- `POST /api/auth/register` → 201 {access_token, refresh_token, user}, role forced `customer`, password min 8, email unique via $1
+- `POST /api/auth/login` → 200 {access_token, refresh_token, user}, bcrypt Compare
+- `POST /api/auth/refresh` → 200 {access_token, refresh_token}, validates typ=refresh
+- `GET /api/auth/me` → 200 {user}, requires Bearer access token
 
 **Security:**
 - Password hash `bcrypt.DefaultCost`, never logged
@@ -131,7 +131,7 @@ curl "http://localhost:8081/api/availability?room_type_id=1&check_in=2026-10-15&
 
 curl -X POST :8081/api/bookings -H "Authorization: Bearer <customer>" -d '{"room_type_id":1,"check_in":"2026-10-20","check_out":"2026-10-22","guests":2}'
 # → {"data":{"id":1,"total_price":700000,"status":"pending_payment"}}
-# — audit log inserted, 8 verified → next booking 409 conflict
+#, audit log inserted, 8 verified → next booking 409 conflict
 ```
 
 ## Frontend Wiring

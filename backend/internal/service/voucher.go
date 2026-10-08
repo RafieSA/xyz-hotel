@@ -30,25 +30,25 @@ func NewVoucherService(vr *repo.VoucherRepo, rr *repo.RoomRepo) *VoucherService 
 func (s *VoucherService) CreateVoucher(ctx context.Context, v *model.Voucher) (*model.Voucher, error) {
 	v.Code = strings.TrimSpace(v.Code)
 	if v.Code == "" {
-		return nil, fmt.Errorf("voucher code is required")
+		return nil, fmt.Errorf("Voucher code is required")
 	}
 	// Use validator for discount/min_nights constraints.
 	validate := validator.New()
 	if err := validate.Struct(v); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
+		return nil, fmt.Errorf("Please check your voucher details: %w", err)
 	}
 	if v.Discount < 0 || v.Discount > 100 {
-		return nil, fmt.Errorf("discount must be between 0 and 100")
+		return nil, fmt.Errorf("Discount must be between 0 and 100")
 	}
 	if v.Quota != nil && *v.Quota < 0 {
-		return nil, fmt.Errorf("quota must be >=0")
+		return nil, fmt.Errorf("Quota must be 0 or more")
 	}
 
 	created, err := s.Repo.Create(ctx, v)
 	if err != nil {
 		// Detect unique violation for code.
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "Duplicate") {
-			return nil, fmt.Errorf("voucher code already exists")
+			return nil, fmt.Errorf("This voucher code already exists. Use a different code")
 		}
 		return nil, err
 	}
@@ -76,7 +76,7 @@ type ValidateResult struct {
 func (s *VoucherService) ValidateAndApply(ctx context.Context, voucherCode string, roomTypeID int64, checkIn, checkOut string) (*ValidateResult, error) {
 	code := strings.TrimSpace(voucherCode)
 	if code == "" {
-		return nil, fmt.Errorf("voucher code is required")
+		return nil, fmt.Errorf("Voucher code is required")
 	}
 	ci, co, err := parseDate(checkIn, checkOut)
 	if err != nil {
@@ -90,7 +90,7 @@ func (s *VoucherService) ValidateAndApply(ctx context.Context, voucherCode strin
 	v, err := s.Repo.FindByCode(ctx, code)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("voucher not found")
+			return nil, fmt.Errorf("Voucher code not found. Check the code and try again")
 		}
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *VoucherService) ValidateAndApply(ctx context.Context, voucherCode strin
 		rt, err := s.RoomRepo.GetRoomTypeByID(roomTypeID)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				return nil, fmt.Errorf("room type not found")
+				return nil, fmt.Errorf("Room type not found. Please choose a valid room type")
 			}
 			return nil, err
 		}
@@ -129,12 +129,12 @@ func (s *VoucherService) ValidateAndApply(ctx context.Context, voucherCode strin
 func (s *VoucherService) ValidateForBookingTx(tx *sqlx.Tx, voucherCode string, nights int) (*model.Voucher, error) {
 	code := strings.TrimSpace(voucherCode)
 	if code == "" {
-		return nil, fmt.Errorf("voucher code is required")
+		return nil, fmt.Errorf("Voucher code is required")
 	}
 	v, err := s.Repo.FindByCodeForUpdate(tx, code)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("voucher not found")
+			return nil, fmt.Errorf("Voucher code not found. Check the code and try again")
 		}
 		return nil, err
 	}
@@ -147,13 +147,13 @@ func (s *VoucherService) ValidateForBookingTx(tx *sqlx.Tx, voucherCode string, n
 // validateVoucher performs pure checks: expiry, quota, min_nights. Exported for testing.
 func validateVoucher(v *model.Voucher, nights int, now time.Time) error {
 	if v.ExpiresAt != nil && now.After(*v.ExpiresAt) {
-		return fmt.Errorf("voucher expired")
+		return fmt.Errorf("This voucher has expired. Try a different code")
 	}
 	if v.Quota != nil && v.UsedCount >= *v.Quota {
-		return fmt.Errorf("voucher quota exceeded")
+		return fmt.Errorf("This voucher quota exceeded. It has reached its usage limit. Try a different code")
 	}
 	if nights < v.MinNights {
-		return fmt.Errorf("voucher requires minimum %d nights", v.MinNights)
+		return fmt.Errorf("This voucher requires minimum %d nights to apply", v.MinNights)
 	}
 	return nil
 }

@@ -94,17 +94,17 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	name = strings.TrimSpace(name)
 	email = strings.TrimSpace(strings.ToLower(email))
 	if name == "" || email == "" || password == "" {
-		return nil, errors.New("name, email and password are required")
+		return nil, errors.New("Name, email and password are required. Please fill in all fields")
 	}
 	if len(password) < 8 {
-		return nil, errors.New("password must be at least 8 characters")
+		return nil, errors.New("Password needs at least 8 characters")
 	}
 	if err := validate.Var(email, "required,email"); err != nil {
-		return nil, errors.New("invalid email format")
+		return nil, errors.New("Enter a valid email address like name@example.com")
 	}
 	_, err := s.UserRepo.FindByEmail(ctx, email)
 	if err == nil {
-		return nil, errors.New("email already registered")
+		return nil, errors.New("This email is already registered. Please sign in instead")
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
@@ -123,7 +123,7 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	}
 	if err := s.UserRepo.Create(ctx, u); err != nil {
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-			return nil, errors.New("email already registered")
+			return nil, errors.New("This email is already registered. Please sign in instead")
 		}
 		return nil, err
 	}
@@ -137,13 +137,13 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (access
 	u, err := s.UserRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no rows") {
-			return "", "", nil, errors.New("invalid credentials")
+			return "", "", nil, errors.New("Email or password is incorrect. Please check and try again")
 		}
 		return "", "", nil, err
 	}
 	if !CheckPassword(u.Password, password) {
 		slog.Warn("login failed: bad password", "email", email)
-		return "", "", nil, errors.New("invalid credentials")
+		return "", "", nil, errors.New("Email or password is incorrect. Please check and try again")
 	}
 	access, refresh, err = s.generateTokens(u)
 	if err != nil {
@@ -163,14 +163,14 @@ func (s *AuthService) Refresh(ctx context.Context, refreshToken string) (access,
 		return s.JWTSecret, nil
 	})
 	if err != nil || !token.Valid {
-		return "", "", errors.New("invalid refresh token")
+		return "", "", errors.New("Your session expired. Please sign in again")
 	}
 	if claims.TokenType != "refresh" {
-		return "", "", errors.New("not a refresh token")
+		return "", "", errors.New("This token cannot refresh your session. Please sign in again")
 	}
 	u, err := s.UserRepo.FindByID(ctx, claims.UserID)
 	if err != nil {
-		return "", "", errors.New("user not found")
+		return "", "", errors.New("We could not find your account. Please sign in again")
 	}
 	return s.generateTokens(u)
 }

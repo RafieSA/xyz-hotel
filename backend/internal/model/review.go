@@ -8,7 +8,7 @@ const (
 	MaxCommentLen   = 500
 )
 
-// Review represents reviews table — one per booking after checked_out.
+// Review represents reviews table  -  one per booking after checked_out.
 type Review struct {
 	ID         int64     `db:"id" json:"id"`
 	BookingID  int64     `db:"booking_id" json:"booking_id"`

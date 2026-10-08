@@ -48,14 +48,14 @@ func NewAvailabilityService(db *sqlx.DB) *AvailabilityService {
 func parseDate(checkIn, checkOut string) (time.Time, time.Time, error) {
 	ci, err := time.Parse("2006-01-02", checkIn)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid check_in format, expected YYYY-MM-DD")
+		return time.Time{}, time.Time{}, fmt.Errorf("Check in date is invalid. Use YYYY-MM-DD format")
 	}
 	co, err := time.Parse("2006-01-02", checkOut)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid check_out format, expected YYYY-MM-DD")
+		return time.Time{}, time.Time{}, fmt.Errorf("Check out date is invalid. Use YYYY-MM-DD format")
 	}
 	if !co.After(ci) {
-		return time.Time{}, time.Time{}, fmt.Errorf("check_out must be after check_in")
+		return time.Time{}, time.Time{}, fmt.Errorf("Check out must be after check in. Please adjust your dates")
 	}
 	return ci, co, nil
 }
@@ -68,7 +68,7 @@ func (s *AvailabilityService) CheckAvailability(ctx context.Context, roomTypeID 
 	rt, err := s.RoomRepo.GetRoomTypeByID(roomTypeID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("room type not found")
+			return nil, fmt.Errorf("Room type not found. Please choose a valid room type")
 		}
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (s *AvailabilityService) CheckAvailability(ctx context.Context, roomTypeID 
 // Steps: BEGIN; SELECT room_type FOR UPDATE; SELECT COUNT(*) FROM bookings FOR UPDATE; validate availability; optional voucher validation with FOR UPDATE + increment; INSERT pending_payment with total_price snapshot (discounted if voucher); audit log; COMMIT.
 func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTypeID int64, checkInStr, checkOutStr string, guests int, voucherCode string) (*model.Booking, error) {
 	if guests < 1 {
-		return nil, fmt.Errorf("guests must be >=1")
+		return nil, fmt.Errorf("Guests must be at least 1")
 	}
 	ci, co, err := parseDate(checkInStr, checkOutStr)
 	if err != nil {
@@ -123,13 +123,13 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 	if err != nil {
 		_ = tx.Rollback()
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("room type not found")
+			return nil, fmt.Errorf("Room type not found. Please choose a valid room type")
 		}
 		return nil, err
 	}
 	if guests > rt.Capacity {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("guests exceeds room capacity (%d)", rt.Capacity)
+		return nil, fmt.Errorf("Too many guests for this room. Maximum is %d", rt.Capacity)
 	}
 
 	occupied, err := s.BookingRepo.CountOverlappingTx(tx, roomTypeID, checkInStr, checkOutStr)
@@ -140,10 +140,10 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 	available := rt.TotalUnits - occupied
 	if available <= 0 {
 		_ = tx.Rollback()
-		return nil, fmt.Errorf("no available units for selected dates")
+		return nil, fmt.Errorf("No rooms available for those dates. Try different dates or room type")
 	}
 
-	// Voucher handling (optional) — validate in same transaction with FOR UPDATE
+	// Voucher handling (optional) - validate in same transaction with FOR UPDATE
 	var voucherID *int64
 	var discount float64
 	totalPrice := rt.Price * int64(nights)
@@ -158,7 +158,7 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		if err != nil {
 			_ = tx.Rollback()
 			if err == sql.ErrNoRows {
-				return nil, fmt.Errorf("voucher not found")
+				return nil, fmt.Errorf("Voucher code not found. Check the code and try again")
 			}
 			return nil, err
 		}
@@ -166,15 +166,15 @@ func (s *AvailabilityService) CreateBooking(ctx context.Context, userID, roomTyp
 		now := time.Now()
 		if v.ExpiresAt != nil && now.After(*v.ExpiresAt) {
 			_ = tx.Rollback()
-			return nil, fmt.Errorf("voucher expired")
+			return nil, fmt.Errorf("This voucher has expired. Try a different code")
 		}
 		if v.Quota != nil && v.UsedCount >= *v.Quota {
 			_ = tx.Rollback()
-			return nil, fmt.Errorf("voucher quota exceeded")
+			return nil, fmt.Errorf("This voucher quota exceeded. It has reached its usage limit. Try a different code")
 		}
 		if nights < v.MinNights {
 			_ = tx.Rollback()
-			return nil, fmt.Errorf("voucher requires minimum %d nights", v.MinNights)
+			return nil, fmt.Errorf("This voucher requires minimum %d nights to apply", v.MinNights)
 		}
 		discount = v.Discount
 		// Apply discount: price*nights*(100-discount)/100 with rounding
