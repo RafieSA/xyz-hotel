@@ -1,33 +1,33 @@
 # 08 — Dependencies & Packages (LOCKED 2026-10-08)
 
-> Keputusan final Rafie: **Backend Go + Frontend Vue — prioritas #1 BAGUS DIMATA (cantik profesional)**. Bosen shadcn, tidak butuh engine cepat. Stack ini hasil deep dive internet 2026 + skill frontend-design.
+> Rafie's final decision: **Go Backend + Vue Frontend — priority #1 LOOKS GOOD (beautifully professional)**. Tired of shadcn, no need for a speed-focused engine. This stack is the result of a 2026 internet deep dive + frontend-design skills.
 
-## Stack Final Locked
+## Final Stack Locked
 
 ```
 Frontend: Vue 3 + Vite + Tailwind CSS + PrimeVue Aura + Lucide Vue
 Backend:  Go 1.26.3 + Fiber + pgx/sqlx + golang-migrate + validator + jwt
-DB:       Postgres 18.4 (local, tanpa Docker)
+DB:       Postgres 18.4 (local, without Docker)
 ```
 
 ## Frontend — Vue 3
 
-| Kebutuhan | Library | Versi | Alasan Cantik | Install |
-|-----------|---------|-------|---------------|---------|
-| **Framework** | `vue` | ^3.5 | Vue 3 composition API, paling membumi | `npm create vue@latest` |
-| **Build** | `vite` | ^6 | Super cepat, HMR instant | bawaan `create-vue` |
-| **Routing** | `vue-router` | ^4 | Frontoffice vs Backoffice pisah route | `npm i vue-router` |
-| **State** | `pinia` | ^3 | Auth & booking state clean, SRP | `npm i pinia` |
-| **Styling** | `tailwindcss` | ^3.4 | Canvas cantik 100% custom `#8B5A2B`, bukan template | `npm i -D tailwindcss postcss autoprefixer` |
-| **UI Library** | `primevue` | ^4.3 | **Aura theme paling cantik 2026** — rounded-xl, shadow soft, DataTable & Calendar premium untuk hotel | `npm i primevue` |
-| **Theme** | `@primevue/themes` | via primevue | Aura preset custom ke `#8B5A2B` + `#C9A86A` | bawaan primevue |
-| **Icons** | `lucide-vue-next` | latest | Garis tipis premium, pasangan PrimeVue, 1000+ icon | `npm i lucide-vue-next` |
-| **HTTP** | `axios` | ^1.7 | Call Go API `http://localhost:8080` | `npm i axios` |
-| **Form Validasi** | `zod` + `vee-validate` | latest | Validasi Zod di Vue, jangan percaya input user | `npm i zod vee-validate` |
+| Need | Library | Version | Why It Looks Good | Install |
+|------|---------|---------|-------------------|---------|
+| **Framework** | `vue` | ^3.5 | Vue 3 Composition API, most approachable | `npm create vue@latest` |
+| **Build** | `vite` | ^6 | Super fast, instant HMR | included with `create-vue` |
+| **Routing** | `vue-router` | ^4 | Separate routes for Frontoffice vs Backoffice | `npm i vue-router` |
+| **State** | `pinia` | ^3 | Clean auth & booking state, SRP | `npm i pinia` |
+| **Styling** | `tailwindcss` | ^3.4 | 100% custom beautiful canvas `#8B5A2B`, not a template | `npm i -D tailwindcss postcss autoprefixer` |
+| **UI Library** | `primevue` | ^4.3 | **Most beautiful Aura theme in 2026** — rounded-xl, soft shadows, premium DataTable & Calendar for a hotel | `npm i primevue` |
+| **Theme** | `@primevue/themes` | via primevue | Aura preset customized to `#8B5A2B` + `#C9A86A` | included with primevue |
+| **Icons** | `lucide-vue-next` | latest | Thin premium lines, perfect match for PrimeVue, 1000+ icons | `npm i lucide-vue-next` |
+| **HTTP** | `axios` | ^1.7 | Calls Go API `http://localhost:8080` | `npm i axios` |
+| **Form Validation** | `zod` + `vee-validate` | latest | Zod validation in Vue, never trust user input | `npm i zod vee-validate` |
 
-### PrimeVue Aura — Kunci Cantik
+### PrimeVue Aura — The Key to Beauty
 
-**Jangan pakai warna default biru.** Override di `frontend/src/theme/aura.js`:
+**Do not use the default blue.** Override in `frontend/src/theme/aura.js`:
 
 ```js
 import Aura from '@primevue/themes/aura'
@@ -46,18 +46,18 @@ export const WarmAura = definePreset(Aura, {
 // main.js: app.use(PrimeVue, { theme: { preset: WarmAura } })
 ```
 
-**Komponen yang dipakai untuk hotel:**
+**Components used for the hotel:**
 
-| Fitur Hotel | Komponen PrimeVue | Kenapa Cantik |
-|-------------|-------------------|---------------|
-| Card kamar | `Card` | rounded-xl + shadow-md + hover lift 2px |
-| Kalender availability | `DatePicker` | Aura rounded-xl cream, range highlight `#FDF6EC` |
-| Tabel booking (backoffice) | `DataTable` + `Column` + `Tag` | Filter, pagination, Tag status warna sesuai `07-design.md` |
-| Dialog booking | `Dialog` | rounded-2xl, overlay `#1A3A4A` 40% |
-| Toast notif | `Toast` | verified hijau, rejected merah |
-| Chart laporan | `Chart` (Chart.js) | Occupancy & revenue |
+| Hotel Feature | PrimeVue Component | Why It Looks Good |
+|---------------|--------------------|-------------------|
+| Room card | `Card` | rounded-xl + shadow-md + 2px hover lift |
+| Availability calendar | `DatePicker` | Aura rounded-xl cream, range highlight `#FDF6EC` |
+| Booking table (backoffice) | `DataTable` + `Column` + `Tag` | Filters, pagination, status Tag colors per `07-design.md` |
+| Booking dialog | `Dialog` | rounded-2xl, overlay `#1A3A4A` 40% |
+| Toast notification | `Toast` | verified green, rejected red |
+| Report chart | `Chart` (Chart.js) | Occupancy & revenue |
 
-### Tailwind Config — Token Cantik
+### Tailwind Config — Beautiful Tokens
 
 ```js
 // tailwind.config.js
@@ -78,67 +78,67 @@ export default {
 
 ## Backend — Go 1.26.3
 
-| Kebutuhan | Library | Alasan | Install |
-|-----------|---------|--------|---------|
-| **Framework** | `github.com/gofiber/fiber/v2` | Paling ngebut, syntax Express-like, docs jelas | `go get -u github.com/gofiber/fiber/v2` |
-| **DB Driver** | `github.com/jackc/pgx/v5` + `github.com/jmoiron/sqlx` | pgx driver Postgres tercepat, sqlx query manual tapi tidak ribet | `go get github.com/jackc/pgx/v5 github.com/jmoiron/sqlx` |
-| **Migrasi** | `github.com/golang-migrate/migrate/v4` | File `001_*.sql` terurut, ACID | `go get github.com/golang-migrate/migrate/v4` |
-| **Validasi** | `github.com/go-playground/validator/v10` | `validate:"required,gt=0"` cegah invalid | `go get github.com/go-playground/validator/v10` |
+| Need | Library | Reason | Install |
+|------|---------|--------|---------|
+| **Framework** | `github.com/gofiber/fiber/v2` | Fastest, Express-like syntax, clear docs | `go get -u github.com/gofiber/fiber/v2` |
+| **DB Driver** | `github.com/jackc/pgx/v5` + `github.com/jmoiron/sqlx` | Fastest Postgres driver (pgx), sqlx for manual but simple queries | `go get github.com/jackc/pgx/v5 github.com/jmoiron/sqlx` |
+| **Migration** | `github.com/golang-migrate/migrate/v4` | Ordered `001_*.sql` files, ACID | `go get github.com/golang-migrate/migrate/v4` |
+| **Validation** | `github.com/go-playground/validator/v10` | `validate:"required,gt=0"` prevents invalid input | `go get github.com/go-playground/validator/v10` |
 | **JWT** | `github.com/golang-jwt/jwt/v5` | Access 15m + refresh httpOnly, bcrypt hash | `go get github.com/golang-jwt/jwt/v5` |
-| **Env** | `github.com/joho/godotenv` | Load `.env` simple | `go get github.com/joho/godotenv` |
-| **CORS** | `github.com/gofiber/fiber/v2/middleware/cors` | Frontend Vue `localhost:5173` ↔ Go `8080` | bawaan fiber |
-| **Logging** | `log/slog` (stdlib Go 1.21+) | Terstruktur, tidak perlu lib | stdlib |
+| **Env** | `github.com/joho/godotenv` | Simple `.env` loading | `go get github.com/joho/godotenv` |
+| **CORS** | `github.com/gofiber/fiber/v2/middleware/cors` | Vue frontend `localhost:5173` ↔ Go `8080` | included with fiber |
+| **Logging** | `log/slog` (Go 1.21+ stdlib) | Structured, no extra lib needed | stdlib |
 
-### Struktur Backend (akan di-scaffold Fase 1)
+### Backend Structure (to be scaffolded in Phase 1)
 
 ```
 backend/
-├── cmd/server/main.go          # Fiber app + route
+├── cmd/server/main.go          # Fiber app + routes
 ├── internal/
 │   ├── handler/                # HTTP only (SRP)
 │   ├── service/                # Business + transaction FOR UPDATE
 │   ├── middleware/             # JWT + RBAC (owner/manager/receptionist/customer)
 │   ├── model/                  # struct User, RoomType, Booking
-│   └── repo/                   # sqlx query ($1,$2 anti-SQLi)
+│   └── repo/                   # sqlx queries ($1,$2 anti-SQLi)
 ├── migrations/001_init.sql     # users, room_types, room_units, bookings, vouchers, audit_logs
 ├── .env.example
 └── go.mod
 ```
 
-## Versi Terkunci (Faktual M4 2026-10-08)
+## Locked Versions (Factual as of M4 2026-10-08)
 
-| Tool | Versi | Cek |
-|------|-------|-----|
+| Tool | Version | Check |
+|------|---------|-------|
 | Go | 1.26.3 darwin/arm64 | `go version` ✅ |
 | Node | 26.7.0 | `node -v` ✅ |
 | Postgres | 18.4 | `psql --version` ✅ |
 | Git | 2.53.0 | `git --version` ✅ |
 
-## Best Practice Cantik (Wajib)
+## Beauty Best Practices (Required)
 
-- **1 warna primary:** `#8B5A2B` untuk semua CTA, harga, badge primary — jangan campur biru template.
-- **1 radius:** `rounded-xl` card, `rounded-full` button — jangan random.
-- **1 shadow:** `shadow-sm` normal, `shadow-md` hover — jangan `shadow-lg` norak.
-- **Icon 20px** konsisten `w-5 h-5`, warna `text-[#8B5A2B]` atau `text-[#6B7280]`.
-- **Validasi di 2 tempat:** Zod di Vue + validator di Go — jangan percaya frontend saja.
-- **No handwritten sia-sia:** Pakai Fiber, sqlx, PrimeVue — jangan bikin router/table dari 0.
+- **1 primary color:** `#8B5A2B` for all CTAs, prices, primary badges — do not mix in blue template colors.
+- **1 radius:** `rounded-xl` for cards, `rounded-full` for buttons — do not randomize.
+- **1 shadow:** `shadow-sm` normal, `shadow-md` on hover — no tacky `shadow-lg`.
+- **Icons at 20px** consistently `w-5 h-5`, color `text-[#8B5A2B]` or `text-[#6B7280]`.
+- **Validate in 2 places:** Zod in Vue + validator in Go — never trust the frontend alone.
+- **No pointless hand-coding:** Use Fiber, sqlx, PrimeVue — do not build a router/table from scratch.
 
 ## DoD Dependencies
 
-- [x] Dipilih & didokumentasikan (file ini)
+- [x] Selected & documented (this file)
 - [ ] `frontend/` scaffold: `npm create vue@latest` + tailwind + primevue + lucide
 - [ ] `backend/` scaffold: `go mod init` + fiber + pgx/sqlx + migrate
-- [ ] `07-design.md` token sync ke `tailwind.config.js` & `aura.js`
+- [ ] `07-design.md` tokens synced to `tailwind.config.js` & `aura.js`
 
-> Next: Fase 1 scaffolding — `backend/` + `frontend/` hello world + migrasi + seed 18 unit.
+> Next: Phase 1 scaffolding — `backend/` + `frontend/` hello world + migration + seed 18 units.
 
-## Referensi Preview (Buka di Browser)
+## Preview References (Open in Browser)
 
 - PrimeVue Aura: https://primevue.org/
 - PrimeVue DatePicker: https://primevue.org/datepicker
 - PrimeVue DataTable: https://primevue.org/datatable
-- Nuxt UI (alternatif yang tidak dipilih): https://ui.nuxt.com/
+- Nuxt UI (alternative not chosen): https://ui.nuxt.com/
 - Lucide Icons: https://lucide.dev/icons/
-- UnoCSS (tidak dipilih, karena prioritas cantik bukan speed): https://unocss.dev/
+- UnoCSS (not chosen, because priority is beauty not speed): https://unocss.dev/
 
-> Keputusan locked. Jangan ganti tanpa diskusi. Prioritas tetap #1 BAGUS DIMATA.
+> Decision locked. Do not change without discussion. Priority remains #1 LOOKS GOOD.

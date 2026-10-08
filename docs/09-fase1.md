@@ -1,18 +1,18 @@
-# 09 — Fase 1 Scaffolding (LOCKED 2026-10-08 — 100% TUNTAS)
+# 09 — Phase 1 Scaffolding (LOCKED 2026-10-08 — 100% COMPLETE)
 
-> 1 putaran penuh: repo GitHub + backend Go Fiber + frontend Vue PrimeVue Aura + build verifikasi.
+> One full iteration: GitHub repo + Go Fiber backend + Vue PrimeVue Aura frontend + build verification.
 
-## Ringkasan
+## Summary
 
 | Item | Status | Detail |
 |------|--------|--------|
-| **Repo GitHub** | ✅ https://github.com/RafieSA/xyz-hotel | public, remote `origin` sudah terpasang |
+| **GitHub Repo** | ✅ https://github.com/RafieSA/xyz-hotel | public, remote `origin` configured |
 | **Backend** | ✅ `backend/` | Go 1.26.3 + Fiber v2 + pgx/sqlx + migrate + validator + jwt + godotenv, `go vet` & `go build` OK |
 | **Frontend** | ✅ `frontend/` | Vue 3 + Vite 8 + Tailwind 3.4 + PrimeVue 4.5 Aura WarmAura `#8B5A2B` + Lucide + Router + Pinia + Zod, `npm run build` OK (1969 modules) |
-| **Build Verifikasi** | ✅ | `go vet ./...` exit 0, `vite build` 1969 modules, no error |
-| **Git Ops** | ⏸️ Ditunda | Sesuai instruksi "no git ops at all" — file ter-create tapi belum `git add/commit/push` |
+| **Build Verification** | ✅ | `go vet ./...` exit 0, `vite build` 1969 modules, no errors |
+| **Git Ops** | ⏸️ Paused | Per instruction "no git ops at all" — files created but not yet `git add/commit/push` |
 
-## Struktur Repo Setelah Fase 1
+## Repository Structure After Phase 1
 
 ```
 xyz-hotel/
@@ -20,7 +20,7 @@ xyz-hotel/
 │   ├── cmd/server/main.go          # Fiber :8080, CORS 5173, /health, /api/health, slog
 │   ├── internal/
 │   │   ├── handler/health.go + booking.go (stub)
-│   │   ├── middleware/auth.go (JWT) + rbac.go (4 role)
+│   │   ├── middleware/auth.go (JWT) + rbac.go (4 roles)
 │   │   ├── model/user.go, room.go, booking.go, voucher.go, audit.go
 │   │   ├── repo/db.go + room.go + booking.go + user.go
 │   │   └── service/availability.go (FOR UPDATE placeholder)
@@ -35,7 +35,7 @@ xyz-hotel/
 │   │   ├── theme/aura.js           # WarmAura preset #8B5A2B
 │   │   ├── router/index.js         # / (Home), /admin, /login
 │   │   ├── stores/auth.js          # Pinia auth
-│   │   ├── views/HomeView.vue      # Hero + search box + 4 Card kamar (PrimeVue Card + Lucide) cantik
+│   │   ├── views/HomeView.vue      # Hero + search box + 4 room Cards (PrimeVue Card + Lucide) elegant
 │   │   ├── views/AdminView.vue     # DataTable + Tag + Chart placeholder
 │   │   └── assets/
 │   ├── tailwind.config.js          # colors primary #8B5A2B, cream, teal, gold
@@ -43,13 +43,13 @@ xyz-hotel/
 │   ├── index.html
 │   └── dist/ (build output)
 ├── docs/
-│   ├── 00-goal.md ... 08-dependencies.md (Fase 0)
-│   └── 09-fase1.md (file ini)
+│   ├── 00-goal.md ... 08-dependencies.md (Phase 0)
+│   └── 09-fase1.md (this file)
 ├── AGENTS.md
 └── README.md
 ```
 
-## Backend Detail
+## Backend Details
 
 **go.mod:**
 ```
@@ -58,29 +58,29 @@ go 1.26
 fiber v2.52.15, pgx v5.11.0, sqlx, migrate v4.20.1, validator v10, jwt v5, godotenv
 ```
 
-**Endpoints Fase 1:**
+**Phase 1 Endpoints:**
 - `GET /health` → `{"status":"ok","service":"xyz-hotel"}`
-- `GET /api/health` → sama
-- CORS `http://localhost:5173` (frontend Vite)
+- `GET /api/health` → same
+- CORS `http://localhost:5173` (Vite frontend)
 
 **Migrations 001_init.sql:**
-- `users` (id, email unique, password_hash, role enum owner/manager/receptionist/customer, index email)
-- `room_types` (4 tipe seed nanti: Standard/Deluxe/Family/Suite)
-- `room_units` (18 unit: STD-101..108, DLX-201..205, FAM-301..303, STE-401..402, status available/occupied/dirty/maintenance)
-- `bookings` (room_type_id, user_id, check_in/out, status pending_payment→checked_out, total_price snapshot, proof_url, index check_in/out/type/status)
+- `users` (id, email unique, password_hash, role enum owner/manager/receptionist/customer, index on email)
+- `room_types` (4 types to be seeded: Standard/Deluxe/Family/Suite)
+- `room_units` (18 units: STD-101..108, DLX-201..205, FAM-301..303, STE-401..402, status available/occupied/dirty/maintenance)
+- `bookings` (room_type_id, user_id, check_in/out, status pending_payment→checked_out, total_price snapshot, proof_url, index on check_in/out/type/status)
 - `vouchers` + `audit_logs`
 
-**Cara Jalan:**
+**How to Run:**
 ```bash
 cd backend
-cp .env.example .env  # isi DATABASE_URL=postgres://...
+cp .env.example .env  # fill in DATABASE_URL=postgres://...
 go mod tidy
 go run ./cmd/server   # :8080
-# atau
+# or
 make run
 ```
 
-## Frontend Detail
+## Frontend Details
 
 **Stack:**
 - Vue 3.5 + Vite 8 + vue-router 5 + pinia 4
@@ -89,8 +89,8 @@ make run
 - lucide-vue-next, axios, zod, vee-validate
 
 **Routes:**
-- `/` → HomeView (hero foto hotel + overlay #1A3A4A 40% + search box cream rounded-2xl + 4 Card kamar)
-- `/admin` → AdminView (DataTable bookings + Tag warna status + Chart placeholder)
+- `/` → HomeView (hotel hero image + overlay #1A3A4A 40% + cream rounded-2xl search box + 4 room Cards)
+- `/admin` → AdminView (bookings DataTable + status-colored Tag + Chart placeholder)
 - `/login` → LoginView
 
 **WarmAura Preset:**
@@ -99,7 +99,7 @@ make run
 definePreset(Aura, { semantic: { primary: {500:'#8B5A2B', 600:'#6F4620'}, colorScheme:{light:{primary:{color:'{primary.500}'}}}}})
 ```
 
-**Cara Jalan:**
+**How to Run:**
 ```bash
 cd frontend
 npm install
@@ -107,28 +107,28 @@ npm run dev    # http://localhost:5173
 npm run build  # dist/
 ```
 
-## Verifikasi Fase 1 (Faktual)
+## Phase 1 Verification (Factual)
 
 ```bash
 cd backend && go vet ./...   # exit 0
-cd frontend && npm run build # 1969 modules, built in 231ms, no error
+cd frontend && npm run build # 1969 modules, built in 231ms, no errors
 ```
 
-## Yang Belum (Fase 2)
+## Remaining (Phase 2)
 
-- Konek DB Postgres & migrasi `001_init.sql`
-- Auth JWT real (register/login) + RBAC 4 role
-- Availability `FOR UPDATE` real + booking CRUD
-- Upload bukti + verifikasi + expired ticker 12 jam
-- Seed 18 unit kamar
+- Connect Postgres DB & run migration `001_init.sql`
+- Real JWT auth (register/login) + RBAC 4 roles
+- Real availability `FOR UPDATE` + booking CRUD
+- Proof upload + verification + 12-hour expiry ticker
+- Seed 18 room units
 - API docs
 
-## Definition of Done Fase 1
+## Phase 1 Definition of Done
 
-- [x] Repo GitHub public terbuat
-- [x] Backend hello world + struktur SRP + go.mod + build OK
+- [x] Public GitHub repo created
+- [x] Backend hello world + SRP structure + go.mod + build OK
 - [x] Frontend hello world + WarmAura #8B5A2B + build OK
-- [x] Dokumentasi ini
-- [ ] Git add/commit/push ditunda (no git ops)
+- [x] This documentation
+- [ ] Git add/commit/push paused (no git ops)
 
-> Next: Fase 2 — migrasi DB + auth + availability (tanpa git ops sampai kamu minta).
+> Next: Phase 2 — DB migration + auth + availability (no git ops until you request it).

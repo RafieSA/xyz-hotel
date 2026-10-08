@@ -1,107 +1,107 @@
-# 03 — Keputusan Tech Stack (Tanpa Next.js)
+# 03 — Tech Stack Decision (Without Next.js)
 
-> Grill Q1 — Dijawab jujur & presisi.
+> Grilling Q1 — Answered honestly & precisely.
 
-## Kenapa Sebelumnya Rekomendasi Next.js?
-Jujur, karena 3 alasan (bukan fanboy):
+## Why Was Next.js Previously Recommended?
+Honestly, for 3 reasons (not fanboyism):
 
-| Alasan | Penjelasan Membumi |
-|--------|---------------------|
-| SEO hotel butuh SSR | Hotel butuh Google nemu halaman kamarnya. Next.js jago SSR. Tapi **bukan satu-satunya** — Laravel SSR, Nuxt, SvelteKit juga bisa. |
-| Ekosistem besar | Banyak template hotel Next.js siap pakai. Tapi template Laravel & Nuxt juga banyak. |
-| Referensi umum | Kebanyakan portfolio hotel di JS pakai Next. Tapi kamu **big no**, jadi kita hormati — preferensi kamu nomor 1. |
+| Reason | Down-to-Earth Explanation |
+|--------|---------------------------|
+| Hotel SEO needs SSR | Hotels need Google to find their room pages. Next.js excels at SSR. But **it's not the only option** — Laravel SSR, Nuxt, and SvelteKit can do it too. |
+| Large ecosystem | Many ready-made Next.js hotel templates exist. But Laravel & Nuxt templates are also plentiful. |
+| Common reference | Most JS hotel portfolios use Next. But you said **big no**, so we respect that — your preference comes first. |
 
-**Kesimpulan:** Next.js bukan wajib. Kita bisa dapat hasil sama bagus tanpa Next.js. Haram memaksa stack yang kamu tidak suka.
+**Conclusion:** Next.js is not mandatory. We can achieve equally good results without it. Forcing a stack you dislike is unacceptable.
 
-## Opsi Pengganti (Tanpa Next.js) — Tradeoff Jujur
+## Replacement Options (Without Next.js) — Honest Tradeoffs
 
-### Opsi A — Laravel 12 + Inertia + Vue 3 + MySQL/Postgres ⭐ REKOMENDASI
-**Gambaran:** Satu codebase Laravel jadi backend + frontend (Vue di dalam Laravel via Inertia). Seperti `xyz-haircut` tapi versi PHP.
+### Option A — Laravel 12 + Inertia + Vue 3 + MySQL/Postgres ⭐ RECOMMENDED
+**Overview:** A single Laravel codebase serving as both backend + frontend (Vue inside Laravel via Inertia). Like `xyz-haircut` but in PHP.
 
-| Aspek | Nilai |
-|-------|-------|
-| **Kelebihan** | PHP 8.2 kamu sudah siap, MySQL/Postgres siap, **tanpa Docker**. Laravel punya auth, CSRF, ORM aman (anti-SQLi), RBAC (Gates/Policies), queue, mail, storage upload bukti — semua built-in. Inertia bikin UX SPA tanpa ribet API terpisah. Cocok untuk portfolio hotel (banyak hotel beneran pakai PHP). Local di M4 ngebut. |
-| **Kekurangan** | Butuh belajar Inertia kalau belum pernah. Bukan JS murni. |
-| **Scalability** | Tinggi — Laravel scale ke multi-hotel gampang. |
-| **Security** | Bawaan Laravel sudah cegah SQLi, XSS, CSRF, IDOR via Policy. |
-| **Contoh** | `app/Http/Controllers/BookingController.php` handle availability dengan DB transaction. `resources/js/Pages/Booking/Create.vue` tampilkan kalender. |
+| Aspect | Assessment |
+|--------|------------|
+| **Pros** | Your PHP 8.2 is ready, MySQL/Postgres is ready, **no Docker needed**. Laravel includes auth, CSRF, safe ORM (anti-SQLi), RBAC (Gates/Policies), queue, mail, storage for proof uploads — all built-in. Inertia gives SPA UX without the hassle of a separate API. Suitable for a hotel portfolio (many real hotels run on PHP). Fast locally on M4. |
+| **Cons** | Need to learn Inertia if you haven't used it before. Not pure JS. |
+| **Scalability** | High — scaling Laravel to multi-hotel is straightforward. |
+| **Security** | Laravel defaults already prevent SQLi, XSS, CSRF, IDOR via Policies. |
+| **Example** | `app/Http/Controllers/BookingController.php` handles availability with a DB transaction. `resources/js/Pages/Booking/Create.vue` displays the calendar. |
 
-**Cocok jika:** Kamu mau cepat jadi, local-first, portfolio yang mudah di-deploy ke shared hosting/VPS murah.
+**Good fit if:** You want to ship fast, local-first, with a portfolio that's easy to deploy to cheap shared hosting/VPS.
 
-### Opsi B — Nuxt 3 (Vue) + Nitro + Postgres (via Prisma/Drizzle)
-**Gambaran:** Sepupu Next.js tapi versi Vue. SSR juga jago.
+### Option B — Nuxt 3 (Vue) + Nitro + Postgres (via Prisma/Drizzle)
+**Overview:** The Vue cousin of Next.js. Also great at SSR.
 
-| Aspek | Nilai |
-|-------|-------|
-| **Kelebihan** | Vue lebih membumi dari React, SSR oke untuk SEO hotel, komunitas besar. |
-| **Kekurangan** | Butuh setup auth manual (tidak sekomplit Laravel). Butuh backend terpisah atau Nitro. Di M4 tanpa Docker tetap jalan, tapi deploy butuh Node server. |
-| **Scalability** | Tinggi. |
-| **Security** | Harus handle CSRF/SQLi manual. |
+| Aspect | Assessment |
+|--------|------------|
+| **Pros** | Vue is more approachable than React, SSR is solid for hotel SEO, large community. |
+| **Cons** | Auth must be set up manually (not as complete as Laravel). Requires a separate backend or Nitro. Still runs on M4 without Docker, but deployment needs a Node server. |
+| **Scalability** | High. |
+| **Security** | Must handle CSRF/SQLi manually. |
 
-**Cocok jika:** Kamu cinta Vue dan mau full JS.
+**Good fit if:** You love Vue and want full JS.
 
-### Opsi C — SvelteKit + Postgres
-**Gambaran:** Paling ringan & cepat, syntax simple.
+### Option C — SvelteKit + Postgres
+**Overview:** The lightest & fastest, with simple syntax.
 
-| Aspek | Nilai |
-|-------|-------|
-| **Kelebihan** | Ringan, cepat, bundle kecil, SSR bagus. |
-| **Kekurangan** | Ekosistem hotel template lebih sedikit, community lebih kecil dari Laravel/Nuxt. |
-| **Scalability** | Tinggi tapi butuh setup manual. |
+| Aspect | Assessment |
+|--------|------------|
+| **Pros** | Lightweight, fast, small bundle, good SSR. |
+| **Cons** | Fewer hotel templates, smaller community than Laravel/Nuxt. |
+| **Scalability** | High but requires manual setup. |
 
-### Opsi D — Dart Frog + Flutter Web (Konsisten xyz-haircut)
-**Gambaran:** Samakan dengan project sebelumnya.
+### Option D — Dart Frog + Flutter Web (Consistent with xyz-haircut)
+**Overview:** Align with the previous project.
 
-| Aspek | Nilai |
-|-------|-------|
-| **Kelebihan** | Konsisten, kamu sudah paham. |
-| **Kekurangan** | Flutter Web SEO lemah (hotel butuh SEO), bundle besar, kurang template hotel. **Tidak direkomendasikan untuk website hotel.** |
+| Aspect | Assessment |
+|--------|------------|
+| **Pros** | Consistent, already familiar to you. |
+| **Cons** | Flutter Web has weak SEO (hotels need SEO), large bundle, few hotel templates. **Not recommended for a hotel website.** |
 
-## ✅ DECISION LOCKED — 2026-10-08 — Backend Golang + Frontend Vue.js (G1)
+## ✅ DECISION LOCKED — 2026-10-08 — Golang Backend + Vue.js Frontend (G1)
 
-**Pilihan final Rafie: Backend Golang (Go 1.26.3) + Frontend Vue 3 + Postgres 18.4.**
+**Rafie's final choice: Golang Backend (Go 1.26.3) + Vue 3 Frontend + Postgres 18.4.**
 
-### Arsitektur Final
+### Final Architecture
 ```
 [ Vue 3 + Vite + Tailwind #8B5A2B ]  -- REST API JSON (JWT) -->  [ Go API — Fiber/Gin + sqlx ]  --> [ Postgres 18.4 ]
         |                                                       |                              |
-   Frontoffice: search, booking, upload                    RBAC 4 role (owner/manager/       tables: users, room_types,
-   Backoffice: dashboard, verifikasi, laporan               receptionist/customer)             room_units, bookings, vouchers,
-   Design token dari docs/07-design.md                     Transaction FOR UPDATE             audit_logs
-                                                           Upload bukti (5MB, jpg/png/pdf)
-                                                           Expired 12 jam (ticker)
+   Frontoffice: search, booking, upload                    RBAC 4 roles (owner/manager/       tables: users, room_types,
+   Backoffice: dashboard, verification, reports             receptionist/customer)             room_units, bookings, vouchers,
+   Design tokens from docs/07-design.md                    Transaction FOR UPDATE             audit_logs
+                                                           Upload proof (5MB, jpg/png/pdf)
+                                                           Expiry 12 hours (ticker)
 ```
 
-### Detail Stack
-| Lapisan | Teknologi | Versi | Alasan |
-|---------|-----------|-------|--------|
-| Backend | **Go + Fiber** (alternatif Gin) | Go 1.26.3 | Fiber paling ngebut, syntax mirip Express, ringan di M4 |
-| DB | **Postgres** | 18.4 | ACID + `FOR UPDATE` solid, sudah ada lokal |
-| Frontend | **Vue 3 + Vite + Tailwind** | Node 26 | Vue membumi, Vite super cepat, Tailwind untuk design #8B5A2B |
-| Auth | JWT access 15 menit + refresh (httpOnly) + bcrypt | — | Cegah Broken Auth |
-| Upload | `storage/uploads` lokal, validasi MIME | — | Manual transfer bukti |
+### Stack Details
+| Layer | Technology | Version | Reason |
+|-------|------------|---------|--------|
+| Backend | **Go + Fiber** (alternative Gin) | Go 1.26.3 | Fiber is the fastest, Express-like syntax, lightweight on M4 |
+| DB | **Postgres** | 18.4 | Solid ACID + `FOR UPDATE`, already available locally |
+| Frontend | **Vue 3 + Vite + Tailwind** | Node 26 | Vue is approachable, Vite is super fast, Tailwind for the `#8B5A2B` design |
+| Auth | JWT access 15 min + refresh (httpOnly) + bcrypt | — | Prevents Broken Authentication |
+| Upload | `storage/uploads` local, MIME validation | — | Manual transfer proof |
 | Repo | Monorepo `backend/` + `frontend/` + `docs/` | — | Local `main` branch, no worktrees |
 
-### Kenapa Go + Vue Cocok untuk xyz-hotel
-1. **Faktual M4:** Go 1.26.3 & Node 26 & Postgres sudah ready — verifikasi `go version` 2026-10-08.
-2. **Portfolio Go:** Langka & bernilai tinggi — showcase "bisa Go + concurrency" beda dari 100 pelamar Laravel.
-3. **Level lengkap tetap bisa:** Voucher, laporan, review — semua bisa di Go, cuma lebih manual (no magic ORM).
-4. **Security:** Harus disiplin pakai placeholder `$1,$2` (anti-SQLi), middleware JWT + role (anti IDOR/BOLA/BFLA), Vue auto-escape (anti-XSS).
-5. **No handwritten from scratch yang sia-sia:** Pakai Fiber (resmi), `sqlx`, `golang-migrate`, `go-playground/validator` — jangan bikin router dari 0.
+### Why Go + Vue Is a Good Fit for xyz-hotel
+1. **Factual M4:** Go 1.26.3 & Node 26 & Postgres are ready — verified via `go version` on 2026-10-08.
+2. **Go portfolio:** Rare & high-value — showcases "can do Go + concurrency", standing out from 100 Laravel applicants.
+3. **Complete level still achievable:** Vouchers, reports, reviews — all possible in Go, just more manual (no magic ORM).
+4. **Security:** Must be disciplined with `$1,$2` placeholders (anti-SQLi), JWT + role middleware (anti IDOR/BOLA/BFLA), Vue auto-escaping (anti-XSS).
+5. **No wasteful handwriting from scratch:** Use Fiber (official), `sqlx`, `golang-migrate`, `go-playground/validator` — don't build a router from zero.
 
-### Tradeoff yang Disepakati (Jujur)
-| Go + Vue | Konsekuensi |
+### Agreed Tradeoffs (Honest)
+| Go + Vue | Consequence |
 |----------|-------------|
-| Dev lebih lama 2-3x vs Laravel | Auth/RBAC/upload/validasi tulis manual — tapi no deadline, jadi oke |
-| Pisah backend/frontend | Setup 2x (`go run` + `npm run dev`), tapi clean separation |
-| Template hotel Go sedikit | Frontend Vue bikin dari 0 pakai design.md |
-| Performa paling ngebut | Handle race condition booking dengan `FOR UPDATE` tetap ACID |
+| Dev takes 2–3× longer vs Laravel | Auth/RBAC/upload/validation written manually — but no deadline, so it's fine |
+| Separate backend/frontend | Double setup (`go run` + `npm run dev`), but clean separation |
+| Few Go hotel templates | Vue frontend built from scratch using design.md |
+| Fastest performance | Handles booking race conditions with `FOR UPDATE` while staying ACID |
 
-### Best Practice yang Wajib (Go + Vue)
-- Clean Code, SRP: `handler` hanya HTTP, `service` handle transaction, `middleware` handle auth/role.
-- Validasi: `validator` di Go + `Zod` di Vue — jangan percaya input user.
-- Transaction: `BEGIN; SELECT ... FOR UPDATE; INSERT; COMMIT;` untuk booking.
-- Logging: `log/slog` terstruktur + `AuditLog` tabel.
-- Testable: `AvailabilityService` bisa di-unit-test tanpa HTTP.
+### Mandatory Best Practices (Go + Vue)
+- Clean Code, SRP: `handler` handles HTTP only, `service` handles transactions, `middleware` handles auth/roles.
+- Validation: `validator` in Go + `Zod` in Vue — never trust user input.
+- Transaction: `BEGIN; SELECT ... FOR UPDATE; INSERT; COMMIT;` for bookings.
+- Logging: structured `log/slog` + `AuditLog` table.
+- Testable: `AvailabilityService` can be unit-tested without HTTP.
 
-> Grill Q1 locked. Q3/Q5/Q6 sudah locked sebelumnya. Siap Fase 1 scaffolding.
+> Grilling Q1 locked. Q3/Q5/Q6 were already locked earlier. Ready for Phase 1 scaffolding.

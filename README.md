@@ -1,50 +1,50 @@
 # xyz-hotel
 
-Aplikasi booking hotel berbasis website — **Frontoffice (pelanggan)** + **Backoffice (manajemen hotel)**. Satu hotel.
+Website-based hotel booking application — **Frontoffice (customers)** + **Backoffice (hotel management)**. Single hotel.
 
-> Status: **FASE 1 — SCAFFOLDING 100% TUNTAS 2026-10-08** — Repo https://github.com/RafieSA/xyz-hotel + Backend Go Fiber + Frontend Vue PrimeVue Aura
+> Status: **PHASE 1 — SCAFFOLDING 100% COMPLETE 2026-10-08** — Repo https://github.com/RafieSA/xyz-hotel + Go Fiber Backend + Vue PrimeVue Aura Frontend
 
-## Stack Final (Locked)
-| Lapisan | Teknologi |
+## Final Stack (Locked)
+| Layer | Technology |
 |---------|-----------|
 | Backend | Go 1.26.3 + Fiber + pgx/sqlx + golang-migrate + validator + jwt |
 | Frontend | Vue 3 + Vite + Tailwind + PrimeVue Aura (WarmAura #8B5A2B) + Lucide + Router + Pinia |
-| DB | Postgres 18.4 (local, tanpa Docker) |
-| Auth | JWT 15m + refresh + bcrypt + RBAC 4 role |
+| DB | Postgres 18.4 (local, no Docker) |
+| Auth | JWT 15m + refresh + bcrypt + RBAC 4 roles |
 
-## Posisi Saat Ini
-- Repo: https://github.com/RafieSA/xyz-hotel (public, origin terpasang)
-- Folder: `/Users/rafiesafarazaribowo/Projects/xyz-hotel`
-- Branch: `main` (local, belum push — no git ops)
+## Current Status
+- Repo: https://github.com/RafieSA/xyz-hotel (public, origin configured)
+- Directory: `/Users/rafiesafarazaribowo/Projects/xyz-hotel`
+- Branch: `main` (local, not yet pushed — no git ops)
 - Backend: `backend/` — Fiber :8080, `go vet` OK
 - Frontend: `frontend/` — Vite :5173, `npm run build` 1969 modules OK
 - Device: MacBook Air M4, Go 1.26.3, Node 26, Postgres 18.4
-- Aturan: **NO Next.js — Go + Vue + PrimeVue Aura cantik**
+- Rule: **NO Next.js — Go + Vue + PrimeVue Aura elegant**
 
-## Struktur
+## Structure
 ```
 xyz-hotel/
 ├── backend/        # Go Fiber
 ├── frontend/       # Vue 3 + Tailwind + PrimeVue Aura WarmAura
-├── docs/           # 00..09 (10 file)
+├── docs/           # 00..09 (10 files)
 ├── AGENTS.md
 └── README.md
 ```
 
-## Dokumen (10 file)
-| File | Isi |
+## Documentation (10 files)
+| File | Contents |
 |------|-----|
-| `docs/00-goal.md` | Tujuan 1 hotel |
-| `docs/01-brainstorming-log.md` | Log sesi 2026-10-08 |
-| `docs/02-prd.md` | PRD level lengkap |
-| `docs/03-tech-stack-decision.md` | Go+Vue tanpa Next.js |
-| `docs/04-roles-permissions.md` | 4 role |
-| `docs/05-booking-flow...md` | Flow + 12 edge cases, expired 12 jam |
-| `docs/06-context...md` | Portfolio, 18 unit seed |
-| `docs/07-design.md` | Design `#8B5A2B` cantik |
+| `docs/00-goal.md` | Single-hotel goal |
+| `docs/01-brainstorming-log.md` | Session log 2026-10-08 |
+| `docs/02-prd.md` | Full PRD |
+| `docs/03-tech-stack-decision.md` | Go+Vue without Next.js |
+| `docs/04-roles-permissions.md` | 4 roles |
+| `docs/05-booking-flow...md` | Flow + 12 edge cases, 12-hour expiry |
+| `docs/06-context...md` | Portfolio, 18-unit seed |
+| `docs/07-design.md` | Design `#8B5A2B` elegant |
 | `docs/08-dependencies.md` | Tailwind+PrimeVue Aura+Lucide |
-| `docs/09-fase1.md` | Fase 1 scaffolding 100% |
-## Cara Jalan Fase 1 (Terverifikasi)
+| `docs/09-fase1.md` | Phase 1 scaffolding 100% |
+## How to Run Phase 1 (Verified)
 ```bash
 # Backend
 cd backend && go run ./cmd/server  # :8080 /health
@@ -54,9 +54,9 @@ cd frontend && npm run build        # 1969 modules OK
 ```
 
 ## Definition of Done
-- [x] Fase 0 — 9 file docs (00-08) locked ✅
-- [x] Fase 1 — Repo https://github.com/RafieSA/xyz-hotel + backend Fiber + frontend PrimeVue Aura + build OK ✅ (no git ops)
-- [ ] Fase 2 — Migrasi DB + auth JWT + availability FOR UPDATE
+- [x] Phase 0 — 9 docs files (00-08) locked ✅
+- [x] Phase 1 — Repo https://github.com/RafieSA/xyz-hotel + Fiber backend + PrimeVue Aura frontend + build OK ✅ (no git ops)
+- [ ] Phase 2 — DB migration + JWT auth + availability FOR UPDATE
 
 ## Next Step
-Fase 2 — konek Postgres, migrasi 001, seed 18 unit, auth 4 role
+Phase 2 — connect Postgres, migration 001, seed 18 units, 4-role auth

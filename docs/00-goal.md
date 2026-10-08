@@ -1,58 +1,58 @@
-# 00 — Goal & Visi xyz-hotel
+# 00 — Goal & Vision xyz-hotel
 
-## Apa itu xyz-hotel?
-Aplikasi booking hotel berbasis **website** dengan 2 sisi:
+## What is xyz-hotel?
+A **website-based** hotel booking application with 2 sides:
 
 ```
 ┌─────────────┐        ┌──────────────┐        ┌─────────────┐
 │ Frontoffice │───────▶│  Backend API │◀───────│ Backoffice  │
-│ (Pelanggan) │        │              │        │ (Manajemen) │
+│ (Customer)  │        │              │        │ (Management)│
 └─────────────┘        └──────────────┘        └─────────────┘
       │                                              │
-  Lihat kamar,                           Kelola kamar, harga,
-  cek tanggal,                          verifikasi booking,
-  booking, upload                       laporan, voucher,
-  bukti bayar                           ganti status kamar
+  View rooms,                            Manage rooms, prices,
+  check dates,                           verify bookings,
+  book, upload                           reports, vouchers,
+  payment proof                          change room status
 ```
 
-**Analogi membumi:**
-- Frontoffice = seperti kamu buka Traveloka → cari hotel → pilih tanggal → pesan
-- Backoffice = seperti dashboard resepsionis di lobi hotel → lihat siapa check-in hari ini, kamar mana kotor/bersih
+**Down-to-earth analogy:**
+- Frontoffice = like opening Traveloka → searching for a hotel → picking dates → booking
+- Backoffice = like the receptionist dashboard in the hotel lobby → seeing who checks in today, which rooms are dirty/clean
 
-## Tujuan Utama
-1. Pelanggan bisa booking kamar **tanpa telpon resepsionis**.
-2. Manajemen bisa kelola kamar, harga, booking, dan laporan **tanpa Excel manual**.
-3. Portfolio pribadi Rafie — bebas kreatif, kualitas tinggi, no deadline, jadi showcase skill.
+## Primary Goals
+1. Customers can book rooms **without calling the receptionist**.
+2. Management can manage rooms, prices, bookings, and reports **without manual Excel**.
+3. Rafie's personal portfolio — creative freedom, high quality, no deadline, as a skill showcase.
 
-## Batasan Fase 0 (yang sudah disepakati 2026-10-08)
-| Aspek | Keputusan | Alasan |
-|-------|-----------|--------|
-| Jumlah hotel | **Satu hotel dulu** | YAGNI — jangan over-engineering multi-hotel di awal, tapi DB siap scale |
-| Level fitur | **Lengkap** (search, availability, booking, review, voucher, laporan) | Portfolio harus wow, tapi bertahap implementasinya |
-| Role | **4 role** | Butuh pemisahan tanggung jawab yang jelas |
-| Pembayaran | **Manual transfer + upload bukti** | Simple, no biaya gateway, cocok untuk portfolio lokal |
-| Availability | **WAJIB real-time** | Inti hotel — kalau salah, bisa double booking |
-| Tech stack | **TIDAK pakai Next.js** | User big no, hormati preferensi |
-| Environment | **Local only di MB Air M4** | Postgres 18.4 / MySQL 9.6, PHP 8.2, Node 26, tanpa Docker |
-| Repo | Local `main` branch, nanti push ke GitHub | No worktrees, langsung di local branch |
+## Phase 0 Constraints (agreed 2026-10-08)
+| Aspect | Decision | Reason |
+|-------|----------|--------|
+| Number of hotels | **One hotel for now** | YAGNI — don't over-engineer multi-hotel early, but keep DB ready to scale |
+| Feature level | **Complete** (search, availability, booking, review, voucher, reports) | Portfolio must be impressive, but implemented incrementally |
+| Roles | **4 roles** | Clear separation of responsibilities required |
+| Payment | **Manual transfer + proof upload** | Simple, no gateway fees, suitable for a local portfolio |
+| Availability | **MUST be real-time** | Core hotel logic — if wrong, double bookings happen |
+| Tech stack | **DO NOT use Next.js** | User's hard preference, respect it |
+| Environment | **Local only on MB Air M4** | Postgres 18.4 / MySQL 9.6, PHP 8.2, Node 26, no Docker |
+| Repo | Local `main` branch, push to GitHub later | No worktrees, work directly on local branch |
 
-## Yang BUKAN Tujuan (Non-Goal) di v1
-- ❌ Payment gateway otomatis (Midtrans/Xendit) — v2
-- ❌ Multi-hotel / multi-cabang — v2
-- ❌ Mobile app native — fokus website dulu
-- ❌ Channel manager (sinkron ke Agoda/Booking.com) — out of scope
+## What is NOT a Goal (Non-Goals) in v1
+- ❌ Automatic payment gateway (Midtrans/Xendit) — v2
+- ❌ Multi-hotel / multi-branch — v2
+- ❌ Native mobile app — website first
+- ❌ Channel manager (sync to Agoda/Booking.com) — out of scope
 
-## Success Criteria (Kapan dibilang berhasil?)
-- Pelanggan bisa selesaikan booking dari cari tanggal sampai upload bukti tanpa bantuan admin.
-- Admin bisa verifikasi booking < 5 menit dan ubah status kamar.
-- Tidak pernah terjadi double booking di tanggal yang sama (ACID terjaga).
-- Laporan harian/bulanan keluar akurat.
+## Success Criteria (When is it considered successful?)
+- Customers can complete a booking from searching dates to uploading proof without admin assistance.
+- Admin can verify a booking in < 5 minutes and change room status.
+- Double bookings on the same date never occur (ACID is maintained).
+- Daily/monthly reports are generated accurately.
 
-## Definition of Done Fase 0
-- [x] Folder `xyz-hotel` + git init
-- [x] 6 file docs ini terisi
-- [ ] Tech stack final tanpa Next.js disepakati
-- [ ] 4 role + alur booking disepakati
-- [ ] Siap ke Fase 1 scaffolding
+## Definition of Done — Phase 0
+- [x] `xyz-hotel` folder + git init
+- [x] These 6 docs files completed
+- [ ] Final tech stack without Next.js agreed
+- [ ] 4 roles + booking flow agreed
+- [ ] Ready for Phase 1 scaffolding
 
-> Next: baca `01-brainstorming-log.md` untuk konteks percakapan lengkap.
+> Next: read `01-brainstorming-log.md` for the full conversation context.

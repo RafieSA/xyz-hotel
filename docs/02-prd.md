@@ -1,68 +1,68 @@
-# 02 — PRD (Product Requirements Document) — Level Lengkap
+# 02 — PRD (Product Requirements Document) — Complete Level
 
-> Status: Draft Fase 0 — akan diperhalus setelah grill stack & role final.
+> Status: Phase 0 Draft — will be refined after final stack & role grilling.
 
-## 1. Ringkasan Produk
-Website booking hotel untuk **satu hotel** dengan frontoffice dan backoffice terpisah, pembayaran manual transfer, dan kalender availability real-time.
+## 1. Product Summary
+A hotel booking website for a **single hotel** with separate frontoffice and backoffice, manual bank-transfer payment, and a real-time availability calendar.
 
-## 2. User & Role (4 Role)
-Lihat detail di `04-roles-permissions.md`. Ringkas:
-- **Super Admin / Owner** — atur semua + lihat laporan uang
-- **Manager** — kelola kamar, harga, promo, verifikasi booking
-- **Receptionist / Front Desk** — check-in/out, ubah status kamar (bersih/kotor/rusak)
-- **Customer** — daftar, cari kamar, booking, upload bukti, review
+## 2. Users & Roles (4 Roles)
+See details in `04-roles-permissions.md`. Summary:
+- **Super Admin / Owner** — manages everything + views financial reports
+- **Manager** — manages rooms, pricing, promotions, verifies bookings
+- **Receptionist / Front Desk** — handles check-in/out, updates room status (clean/dirty/maintenance)
+- **Customer** — registers, searches rooms, books, uploads proof, leaves reviews
 
-## 3. Fitur Frontoffice (Pelanggan)
+## 3. Frontoffice Features (Customer)
 
-### 3.1 Wajib (v1)
-- [ ] Landing page: hero, daftar tipe kamar, fasilitas, CTA booking
-- [ ] Search availability: pilih `check_in` & `check_out` → lihat kamar kosong real-time
-- [ ] Detail kamar: foto, deskripsi, fasilitas, harga/malam, kapasitas
-- [ ] Booking flow: pilih kamar → isi tamu (nama, HP, email) → buat booking `pending_payment` → instruksi transfer
-- [ ] Upload bukti transfer (gambar/PDF) → status `waiting_verification`
-- [ ] Riwayat booking + status tracking (pending, verified, checked_in, checked_out, cancelled, expired)
-- [ ] Auth: register/login (email+password), lupa password, profil
+### 3.1 Required (v1)
+- [ ] Landing page: hero, room type listing, facilities, booking CTA
+- [ ] Search availability: select `check_in` & `check_out` → see available rooms in real-time
+- [ ] Room details: photos, description, facilities, price/night, capacity
+- [ ] Booking flow: select room → enter guest details (name, phone, email) → create booking `pending_payment` → transfer instructions
+- [ ] Upload transfer proof (image/PDF) → status `waiting_verification`
+- [ ] Booking history + status tracking (pending, verified, checked_in, checked_out, cancelled, expired)
+- [ ] Auth: register/login (email+password), forgot password, profile
 
-### 3.2 Lengkap (v1 tapi bisa bertahap)
-- [ ] Review & rating per tipe kamar (hanya yang sudah check-out bisa review)
-- [ ] Voucher/kode promo (potongan %, min. malam, expiry)
-- [ ] Wishlist / favorit
-- [ ] Invoice PDF setelah verified
-- [ ] Email notifikasi (booking dibuat, diverifikasi, expired)
+### 3.2 Complete (v1 but can be incremental)
+- [ ] Reviews & ratings per room type (only guests who have checked out can review)
+- [ ] Voucher/promo codes (percentage discount, min. nights, expiry)
+- [ ] Wishlist / favorites
+- [ ] PDF invoice after verification
+- [ ] Email notifications (booking created, verified, expired)
 
-### 3.3 Contoh Skenario Membumi
-> **Skenario A:** Ani mau liburan 2 malam (10-12 Okt). Dia buka website → pilih tanggal → sistem cek: Deluxe masih 2 unit kosong → Ani booking 1 kamar Deluxe → dapat instruksi transfer BCA 123456 Rp 1.000.000 → upload bukti → admin verifikasi 10 menit → status jadi `verified` → Ani dapat email invoice.
+### 3.3 Down-to-Earth Example Scenario
+> **Scenario A:** Ani wants a 2-night stay (Oct 10–12). She opens the website → selects dates → system checks: 2 Deluxe units still available → Ani books 1 Deluxe room → receives transfer instructions to BCA 123456 for IDR 1,000,000 → uploads proof → admin verifies within 10 minutes → status becomes `verified` → Ani receives an invoice email.
 
-## 4. Fitur Backoffice (Manajemen)
+## 4. Backoffice Features (Management)
 
-### 4.1 Kamar & Inventory
-- [ ] CRUD tipe kamar (nama, deskripsi, kapasitas, harga/malam, jumlah unit)
-- [ ] CRUD unit kamar fisik (contoh: Deluxe-101, Deluxe-102) + status: `available`, `occupied`, `dirty`, `maintenance`
-- [ ] Kalender occupancy (lihat semua booking per tanggal)
-- [ ] Atur harga musiman / weekend (opsional v1)
+### 4.1 Rooms & Inventory
+- [ ] CRUD for room types (name, description, capacity, price/night, number of units)
+- [ ] CRUD for physical room units (e.g., Deluxe-101, Deluxe-102) + status: `available`, `occupied`, `dirty`, `maintenance`
+- [ ] Occupancy calendar (view all bookings per date)
+- [ ] Seasonal / weekend pricing (optional in v1)
 
-### 4.2 Booking & Operasional
-- [ ] Daftar booking: filter status, tanggal, tipe kamar
-- [ ] Verifikasi bukti transfer (approve/reject + alasan)
-- [ ] Check-in / Check-out manual + assign unit kamar fisik
-- [ ] Cancel & refund manual (catat alasan)
-- [ ] Expired otomatis: booking `pending_payment` yang tidak bayar dalam 2 jam → `expired`
+### 4.2 Bookings & Operations
+- [ ] Booking list: filter by status, date, room type
+- [ ] Verify transfer proof (approve/reject + reason)
+- [ ] Manual check-in / check-out + assign physical room unit
+- [ ] Manual cancel & refund (record reason)
+- [ ] Auto-expiry: bookings with `pending_payment` that remain unpaid for 2 hours → `expired`
 
-### 4.3 Laporan & Lainnya
-- [ ] Laporan harian/bulanan: occupancy rate, revenue, booking per tipe
-- [ ] Kelola voucher/promo
-- [ ] Kelola user & role
-- [ ] Log audit (siapa ubah apa, kapan)
+### 4.3 Reports & Other
+- [ ] Daily/monthly reports: occupancy rate, revenue, bookings per type
+- [ ] Manage vouchers/promos
+- [ ] Manage users & roles
+- [ ] Audit log (who changed what, when)
 
-## 5. Alur Bisnis Inti (Disederhanakan)
+## 5. Core Business Flow (Simplified)
 ```
 Customer                    System                     Admin
    │                          │                          │
-   ├─ search(tgl) ───────────▶│                          │
-   │◀─ list kamar kosong ─────┤                          │
+   ├─ search(dates) ─────────▶│                          │
+   │◀─ list available rooms ───┤                          │
    ├─ create booking ────────▶│                          │
    │◀─ pending_payment ───────┤                          │
-   ├─ upload bukti ──────────▶│                          │
+   ├─ upload proof ──────────▶│                          │
    │                          ├─ waiting_verification ──▶│
    │                          │◀─ verified/rejected ─────┤
    │◀─ notif verified ────────┤                          │
@@ -70,32 +70,32 @@ Customer                    System                     Admin
    │                          │                          ├─ check-out ─▶ dirty → available
 ```
 
-Detail flow + edge cases di `05-booking-flow-and-edge-cases.md`.
+See `05-booking-flow-and-edge-cases.md` for detailed flow + edge cases.
 
-## 6. Aturan Bisnis Penting
-| Aturan | Contoh |
-|--------|--------|
-| Check-in 14:00, check-out 12:00 | Booking 10-12 Okt = 2 malam, unit bebas jam 12:00 tgl 12 |
-| 1 booking = 1 tipe kamar, N malam | Tidak campur tipe dalam 1 booking (YAGNI) |
-| Overlap dilarang | Kamar Deluxe total 5 unit, kalau 5 sudah dibooking tgl X, booking ke-6 harus ditolak |
-| Harga = harga/malam × malam − diskon voucher | Voucher cek expiry & quota |
-| Review hanya setelah check-out | Cegah review palsu |
+## 6. Important Business Rules
+| Rule | Example |
+|------|---------|
+| Check-in 14:00, check-out 12:00 | Booking Oct 10–12 = 2 nights, unit is free at 12:00 on the 12th |
+| 1 booking = 1 room type, N nights | No mixing room types in a single booking (YAGNI) |
+| Overlapping bookings prohibited | If a Deluxe room has 5 total units and all 5 are booked on date X, the 6th booking must be rejected |
+| Price = price/night × nights − voucher discount | Voucher checks expiry & quota |
+| Reviews only after check-out | Prevents fake reviews |
 
-## 7. Kebutuhan Non-Fungsional
-- **Security:** IDOR/BOLA/BFLA blocked, SQLi via parameterized query, XSS escaped, CSRF token, password hash bcrypt/argon2, JWT/cookie httpOnly.
-- **Scalability:** Siap multi-hotel nanti (tambah `hotel_id`), pagination, index di `check_in/out`.
+## 7. Non-Functional Requirements
+- **Security:** IDOR/BOLA/BFLA blocked, SQLi via parameterized queries, XSS escaped, CSRF tokens, password hashing with bcrypt/argon2, JWT/cookie httpOnly.
+- **Scalability:** Ready for multi-hotel later (add `hotel_id`), pagination, indexes on `check_in/out`.
 - **Maintainability:** Clean Code, SRP, error handling + logging, testable.
-- **ACID:** Booking creation harus transaksi DB (cek availability + insert booking atomik).
-- **Local-first:** Jalan di M4 tanpa Docker, migrasi terurut.
+- **ACID:** Booking creation must be a DB transaction (check availability + insert booking atomically).
+- **Local-first:** Runs on M4 without Docker, ordered migrations.
 
 ## 8. Out of Scope v1
-- Payment gateway otomatis
+- Automatic payment gateway
 - Multi-hotel
 - Channel manager (Agoda)
 - Mobile app
 
-## 9. Definition of Done per Fitur
-- Ada API + UI + validasi + error handling + logging + test minimal 1 happy + 1 edge case.
-- Tidak ada happy-path-only — semua edge case di `05-...` harus di-handle.
+## 9. Definition of Done per Feature
+- Has API + UI + validation + error handling + logging + at least 1 happy-path + 1 edge-case test.
+- No happy-path-only — all edge cases in `05-...` must be handled.
 
-> Next: `03-tech-stack-decision.md` untuk pilih stack tanpa Next.js.
+> Next: `03-tech-stack-decision.md` to choose a stack without Next.js.

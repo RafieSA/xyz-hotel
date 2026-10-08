@@ -1,71 +1,71 @@
 # 06 — Context & Constraints (Portfolio, Local, Security)
 
-> File ini menjawab Q5: "Lo yang atur, bebas sekreatif mungkin" — tapi tetap terukur.
+> This file answers Q5: "You decide, be as creative as you want" — but still measured.
 
-## Konteks Portfolio Pribadi
-- **No deadline, no client, no bos** — kamu berdiri 2 kaki sendiri. Artinya: kualitas > kecepatan. Kita tidak kejar sprint, kita kejar showcase yang bisa kamu banggakan di CV/GitHub.
-- **Bebas kreatif:** Tipe kamar, harga, fasilitas, desain — agent atur bebas tapi tetap masuk akal bisnis hotel bintang 3.
-- **Tipe kamar — LOCKED 2026-10-08 (akan di-seed via `database/seeders/RoomSeeder.php`):**
+## Personal Portfolio Context
+- **No deadline, no client, no boss** — you stand on your own two feet. That means: quality > speed. We are not chasing sprints; we are chasing a showcase you can be proud of on your CV/GitHub.
+- **Free to be creative:** Room types, pricing, amenities, design — the agent may decide freely as long as it remains realistic for a 3-star hotel business.
+- **Room types — LOCKED 2026-10-08 (to be seeded via `database/seeders/RoomSeeder.php`):**
 
-| Tipe | Kapasitas | Kasur | Fasilitas | Harga/malam | Unit |
-|------|-----------|-------|-----------|-------------|------|
-| Standard | 2 | 1 Queen | AC, TV, Kamar mandi dalam | Rp 350.000 | 8 |
-| Deluxe | 2 | 1 Queen + Sofa | + Balkon, Mini fridge | Rp 550.000 | 5 |
-| Family | 4 | 2 Queen | + Dapur mini, 2 kamar | Rp 850.000 | 3 |
-| Suite | 2 | 1 King | + Living room, Jacuzzi | Rp 1.250.000 | 2 |
+| Type | Capacity | Bed | Amenities | Price/night | Units |
+|------|----------|-----|-----------|-------------|-------|
+| Standard | 2 | 1 Queen | AC, TV, En-suite bathroom | Rp 350,000 | 8 |
+| Deluxe | 2 | 1 Queen + Sofa | + Balcony, Mini fridge | Rp 550,000 | 5 |
+| Family | 4 | 2 Queen | + Mini kitchen, 2 bedrooms | Rp 850,000 | 3 |
+| Suite | 2 | 1 King | + Living room, Jacuzzi | Rp 1,250,000 | 2 |
 
-> Total 18 unit fisik (STD-101..108, DLX-201..205, FAM-301..303, STE-401..402). Harga di-snapshot ke `bookings.total_price` saat booking.
+> Total 18 physical units (STD-101..108, DLX-201..205, FAM-301..303, STE-401..402). Price is snapshotted to `bookings.total_price` at booking time.
 
-## Prinsip yang Wajib Dijaga (No Future Debt)
-| Prinsip | Contoh Penerapan di xyz-hotel |
-|---------|-------------------------------|
-| **YAGNI** | Jangan bikin multi-hotel, multi-kamar per booking, atau payment gateway di v1. |
-| **DRY** | Logic availability di 1 service `AvailabilityService`, jangan copy-paste di controller. |
-| **KISS** | Validasi tanggal simple: `check_out > check_in`, jangan bikin engine pricing kompleks dulu. |
-| **SRP** | `BookingController` hanya HTTP, `BookingService` handle transaction, `BookingPolicy` handle izin. |
-| **SOLID** | Dependency injection untuk service, bukan `new` di controller. |
-| **ACID** | Booking creation dalam 1 transaction. |
-| **Clean Code** | Nama variabel `occupiedUnits` bukan `x`, fungsi < 30 baris. |
-| **Testable** | Availability logic bisa di-unit-test tanpa HTTP. |
+## Principles to Uphold (No Future Debt)
+| Principle | Application in xyz-hotel |
+|-----------|--------------------------|
+| **YAGNI** | Do not build multi-hotel, multi-room per booking, or a payment gateway in v1. |
+| **DRY** | Availability logic lives in one service `AvailabilityService`, do not copy-paste across controllers. |
+| **KISS** | Keep date validation simple: `check_out > check_in`, do not build a complex pricing engine yet. |
+| **SRP** | `BookingController` handles HTTP only, `BookingService` handles transactions, `BookingPolicy` handles authorization. |
+| **SOLID** | Use dependency injection for services, not `new` inside controllers. |
+| **ACID** | Booking creation within a single transaction. |
+| **Clean Code** | Variable names like `occupiedUnits` not `x`, functions < 30 lines. |
+| **Testable** | Availability logic can be unit-tested without HTTP. |
 
-## Security — Haram Bocor (Checklist)
+## Security — No Leaks Allowed (Checklist)
 
-| Ancaman | Cara Cegah di xyz-hotel |
-|---------|--------------------------|
-| **SQL Injection** | Eloquent ORM + parameterized query, jangan raw string concat |
-| **IDOR / BOLA** | Policy cek `booking.user_id == auth.id` |
-| **BFLA** | Middleware role di setiap route group |
-| **Broken Auth** | Hash argon2/bcrypt, httpOnly cookie, rate limit 5x/menit login |
-| **XSS** | Escape output di Vue (`{{ }}` otomatis escaped), validasi input |
-| **CSRF** | Laravel CSRF token otomatis untuk Inertia |
-| **Sensitive Data** | Jangan log password, jangan expose `user.email` ke customer lain |
-| **Security Misconfig** | `.env` tidak commit, `APP_DEBUG=false` di prod, error message generic |
-| **SSRF** | Validasi URL upload (hanya local storage, bukan fetch URL eksternal) |
+| Threat | Prevention in xyz-hotel |
+|--------|--------------------------|
+| **SQL Injection** | Eloquent ORM + parameterized queries, never raw string concatenation |
+| **IDOR / BOLA** | Policy check `booking.user_id == auth.id` |
+| **BFLA** | Role middleware on every route group |
+| **Broken Auth** | Argon2/bcrypt hashing, httpOnly cookies, rate limit 5x/minute on login |
+| **XSS** | Escape output in Vue (`{{ }}` auto-escaped), input validation |
+| **CSRF** | Laravel CSRF token automatically for Inertia |
+| **Sensitive Data** | Do not log passwords, do not expose `user.email` to other customers |
+| **Security Misconfig** | Do not commit `.env`, `APP_DEBUG=false` in prod, generic error messages |
+| **SSRF** | Validate upload URLs (local storage only, do not fetch external URLs) |
 
-## Scalability & Maintainability (Portfolio Harus Tahan Lama)
-- **Pagination** di daftar booking/kamar (jangan `SELECT *` tanpa limit).
-- **Index DB:** `bookings(check_in, check_out, room_type_id, status)`, `users(email)`.
-- **Soft delete** untuk kamar & user (jangan hard delete — histori booking butuh).
-- **Audit log** tabel terpisah.
-- **Dokumentasi API** di `docs/02-api.md` (akan dibuat Fase 1).
-- **Logging** terstruktur: `Log::info('booking.created', ['id'=>..])`.
+## Scalability & Maintainability (Portfolio Must Be Long-Lived)
+- **Pagination** on booking/room listings (do not `SELECT *` without a limit).
+- **DB indexes:** `bookings(check_in, check_out, room_type_id, status)`, `users(email)`.
+- **Soft deletes** for rooms & users (do not hard-delete — booking history is needed).
+- **Audit log** in a separate table.
+- **API documentation** in `docs/02-api.md` (to be created in Phase 1).
+- **Structured logging:** `Log::info('booking.created', ['id'=>..])`.
 
-## Kreativitas yang Diizinkan (Karena No Rules)
-- Desain landing page bebas — bisa pakai tema warm hotel (gold, cream) beda dari xyz-haircut biru.
-- Fitur bonus portfolio: peta lokasi hotel, galeri foto, FAQ, kontak WhatsApp.
-- Laporan bisa pakai chart (Chart.js) — showcase skill.
+## Creativity Allowed (Because No Rules)
+- Free landing page design — can use a warm hotel theme (gold, cream) distinct from the blue of xyz-haircut.
+- Bonus portfolio features: hotel location map, photo gallery, FAQ, WhatsApp contact.
+- Reports can use charts (Chart.js) — a chance to showcase skills.
 
-## Definition of Done Global (Portfolio Grade)
-- [ ] Kode rapi, ada README cara jalan local
-- [ ] Tidak ada TODO/FIXME sisa
-- [ ] Screenshots / demo GIF di README
-- [ ] Repo GitHub public, commit history bersih
-- [ ] Tidak ada secret ter-commit
+## Global Definition of Done (Portfolio Grade)
+- [ ] Clean code, README with local setup instructions
+- [ ] No remaining TODO/FIXME
+- [ ] Screenshots / demo GIF in README
+- [ ] Public GitHub repo, clean commit history
+- [ ] No committed secrets
 
-## Next Step Setelah Fase 0
-1. Lock tech stack (jawab grill `03`)
-2. Lock role & flow (jawab grill `04` & `05`)
-3. `git remote add` + push ke GitHub (kamu minta nanti)
-4. Fase 1: scaffolding Laravel + migrasi DB
+## Next Steps After Phase 0
+1. Lock tech stack (answer grill `03`)
+2. Lock roles & flow (answer grill `04` & `05`)
+3. `git remote add` + push to GitHub (on your request)
+4. Phase 1: Laravel scaffolding + DB migrations
 
-> Kalau kamu setuju tipe kamar di atas, bilang "setuju tipe kamar". Kalau mau ubah, bilang maunya gimana.
+> If you agree with the room types above, say "agree to room types". If you want changes, tell us what you'd like.
