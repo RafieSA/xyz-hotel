@@ -3,16 +3,18 @@
 Project: xyz-hotel. Aplikasi booking hotel berbasis website. Satu hotel. Monorepo `app/ + backend/ + docs/`. Branch `main`, kerja di local branch, no worktrees. Local only (MacBook Air M4), tanpa Docker, Postgres/MySQL lokal.
 
 > HARD RULE (user, 2026-10-08): BIG NO Next.js. Jangan pernah rekomendasikan Next.js lagi. Fase 0 = grill, brainstorming, discuss, dokumentasi dulu. No coding sebelum flow & tech stack final.
-
-## Locked decisions (Fase 0)
+## Locked decisions (Fase 0 — LOCKED 2026-10-08)
+- Stack: **Backend Go 1.26.3 (Fiber/Gin + sqlx) + Frontend Vue 3 + Vite + Tailwind + Postgres 18.4**. BIG NO Next.js.
 - Satu hotel dulu (scalable ke multi-hotel nanti, tapi DB siap).
 - Level Lengkap: searching, booking, availability real-time, review, voucher, laporan.
-- 4 role (detail di `docs/04-roles-permissions.md`).
+- 4 role: owner, manager, receptionist, customer (detail di `docs/04-roles-permissions.md`).
 - Pembayaran manual transfer + upload bukti + verifikasi admin (no payment gateway di v1).
-- Availability calendar WAJIB dengan handling race condition & ACID.
+- Availability calendar WAJIB dengan handling race condition & ACID (`FOR UPDATE`).
+- Tipe kamar 4 locked (Standard 8, Deluxe 5, Family 3, Suite 2 = 18 unit, akan di-seed).
+- Expired 12 jam (`pending_payment` → `expired` jika `created_at < now-12h`), check-in 14:00/out 12:00.
+- Design token locked `#8B5A2B` (Warm Brown) di `docs/07-design.md`.
 - Portfolio pribadi, no deadline, no client, no bos — bebas sekreatif mungkin, tapi tetap Clean Code.
-- Local-first: Postgres 18.4 / MySQL 9.6, PHP 8.2, Node 26, Bun 1.4, Git 2.53 tersedia. Docker TIDAK ADA.
-
+- Local-first: Postgres 18.4, Go 1.26.3, Node 26, Bun 1.4, Git 2.53 tersedia. Docker TIDAK ADA.
 ## How to work with Rafie
 - Interaktif satu-satu, bahasa Indonesia membumi, selalu pakai contoh + tradeoff + edge case + visual (tabel/diagram).
 - No shortcuts, no workaround, no happy-path-only. Setiap edge case harus di-handle.

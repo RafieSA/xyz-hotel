@@ -57,36 +57,51 @@ Jujur, karena 3 alasan (bukan fanboy):
 | **Kelebihan** | Konsisten, kamu sudah paham. |
 | **Kekurangan** | Flutter Web SEO lemah (hotel butuh SEO), bundle besar, kurang template hotel. **Tidak direkomendasikan untuk website hotel.** |
 
-## Rekomendasi Final
-**Pilih Opsi A: Laravel 12 + Inertia + Vue 3 + Postgres (atau MySQL).**
+## ✅ DECISION LOCKED — 2026-10-08 — Backend Golang + Frontend Vue.js (G1)
 
-**Alasan presisi (bukan asumsi):**
-1. **Faktual:** PHP 8.2, Postgres 18.4, MySQL 9.6 sudah ada di M4 kamu — verifikasi via `bash`. Tanpa Docker, Laravel jalan dengan `php artisan serve`.
-2. **Portfolio:** Hotel dengan Laravel + Vue adalah showcase yang mudah dipahami recruiter/client Indonesia (banyak pakai PHP).
-3. **Fitur level lengkap:** Voucher, laporan, upload bukti, RBAC 4 role — Laravel sudah punya paket matang.
-4. **Security:** Bawaan Laravel cegah IDOR/BOLA via Policy, SQLi via Eloquent parameterized, CSRF token otomatis.
-5. **YAGNI & DRY:** Satu repo, satu bahasa backend, tidak perlu pisah frontend/backend repo di Fase 0.
-6. **No handwritten from scratch:** Pakai Breeze/Inertia starter (resmi Laravel) — bukan ngoding auth dari 0.
+**Pilihan final Rafie: Backend Golang (Go 1.26.3) + Frontend Vue 3 + Postgres 18.4.**
 
-**Alternatif jika kamu big no Laravel juga:** Pilih **Opsi B (Nuxt 3)** — beri tahu, aku ganti rekomendasi.
+### Arsitektur Final
+```
+[ Vue 3 + Vite + Tailwind #8B5A2B ]  -- REST API JSON (JWT) -->  [ Go API — Fiber/Gin + sqlx ]  --> [ Postgres 18.4 ]
+        |                                                       |                              |
+   Frontoffice: search, booking, upload                    RBAC 4 role (owner/manager/       tables: users, room_types,
+   Backoffice: dashboard, verifikasi, laporan               receptionist/customer)             room_units, bookings, vouchers,
+   Design token dari docs/07-design.md                     Transaction FOR UPDATE             audit_logs
+                                                           Upload bukti (5MB, jpg/png/pdf)
+                                                           Expired 12 jam (ticker)
+```
 
-## Tradeoff yang Harus Kamu Tahu (Jujur)
-| Jika Pilih Laravel | Jika Pilih Nuxt/SvelteKit |
-|--------------------|----------------------------|
-| Deploy gampang di cPanel/VPS PHP | Deploy butuh Node server (lebih mahal) |
-| Auth & upload sudah jadi | Auth & upload bikin manual |
-| SEO SSR via Inertia (cukup bagus, tapi tidak se-SEO Next/Nuxt murni) | SEO SSR lebih optimal |
-| Belajar Blade/Vue | Full JS |
+### Detail Stack
+| Lapisan | Teknologi | Versi | Alasan |
+|---------|-----------|-------|--------|
+| Backend | **Go + Fiber** (alternatif Gin) | Go 1.26.3 | Fiber paling ngebut, syntax mirip Express, ringan di M4 |
+| DB | **Postgres** | 18.4 | ACID + `FOR UPDATE` solid, sudah ada lokal |
+| Frontend | **Vue 3 + Vite + Tailwind** | Node 26 | Vue membumi, Vite super cepat, Tailwind untuk design #8B5A2B |
+| Auth | JWT access 15 menit + refresh (httpOnly) + bcrypt | — | Cegah Broken Auth |
+| Upload | `storage/uploads` lokal, validasi MIME | — | Manual transfer bukti |
+| Repo | Monorepo `backend/` + `frontend/` + `docs/` | — | Local `main` branch, no worktrees |
 
-## Pertanyaan Grill untuk Kamu (Jawab 1 saja)
-**"Setuju Opsi A (Laravel + Inertia Vue)? Atau kamu mau Opsi B (Nuxt) / Opsi C (SvelteKit)?"**
+### Kenapa Go + Vue Cocok untuk xyz-hotel
+1. **Faktual M4:** Go 1.26.3 & Node 26 & Postgres sudah ready — verifikasi `go version` 2026-10-08.
+2. **Portfolio Go:** Langka & bernilai tinggi — showcase "bisa Go + concurrency" beda dari 100 pelamar Laravel.
+3. **Level lengkap tetap bisa:** Voucher, laporan, review — semua bisa di Go, cuma lebih manual (no magic ORM).
+4. **Security:** Harus disiplin pakai placeholder `$1,$2` (anti-SQLi), middleware JWT + role (anti IDOR/BOLA/BFLA), Vue auto-escape (anti-XSS).
+5. **No handwritten from scratch yang sia-sia:** Pakai Fiber (resmi), `sqlx`, `golang-migrate`, `go-playground/validator` — jangan bikin router dari 0.
 
-> Jawab singkat: "A" / "B" / "C" / "Ada opsi lain". Setelah itu kita lock dan lanjut grill 4 role & flow. Tidak akan lanjut scaffolding sebelum kamu lock.
+### Tradeoff yang Disepakati (Jujur)
+| Go + Vue | Konsekuensi |
+|----------|-------------|
+| Dev lebih lama 2-3x vs Laravel | Auth/RBAC/upload/validasi tulis manual — tapi no deadline, jadi oke |
+| Pisah backend/frontend | Setup 2x (`go run` + `npm run dev`), tapi clean separation |
+| Template hotel Go sedikit | Frontend Vue bikin dari 0 pakai design.md |
+| Performa paling ngebut | Handle race condition booking dengan `FOR UPDATE` tetap ACID |
 
-## Best Practice yang Akan Kita Terapkan (Apapun Stack)
-- Clean Code, SRP (1 controller 1 tanggung jawab), Error Handling + Logging (bukan `try-catch` kosong).
-- Validasi di FormRequest (Laravel) / Zod (JS) — jangan percaya input user.
-- Transaction untuk booking (ACID).
-- Testable: minimal unit test untuk availability logic.
+### Best Practice yang Wajib (Go + Vue)
+- Clean Code, SRP: `handler` hanya HTTP, `service` handle transaction, `middleware` handle auth/role.
+- Validasi: `validator` di Go + `Zod` di Vue — jangan percaya input user.
+- Transaction: `BEGIN; SELECT ... FOR UPDATE; INSERT; COMMIT;` untuk booking.
+- Logging: `log/slog` terstruktur + `AuditLog` tabel.
+- Testable: `AvailabilityService` bisa di-unit-test tanpa HTTP.
 
-> Setelah lock, file ini akan di-update dengan "DECISION: Opsi X — Locked 2026-10-08".
+> Grill Q1 locked. Q3/Q5/Q6 sudah locked sebelumnya. Siap Fase 1 scaffolding.

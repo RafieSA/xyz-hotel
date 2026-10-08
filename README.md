@@ -2,19 +2,21 @@
 
 Aplikasi booking hotel berbasis website — **Frontoffice (pelanggan)** + **Backoffice (manajemen hotel)**. Satu hotel.
 
-> Status: **FASE 0 — Grill & Brainstorming** (belum coding, lagi matangkan ide & dokumentasi)
+> Status: **FASE 0 — LOCKED 2026-10-08** — Stack: **Go 1.26.3 + Vue 3 + Postgres 18.4** (Go API + Vue Vite)
+
+## Stack Final (Locked)
+| Lapisan | Teknologi |
+|---------|-----------|
+| Backend | Go 1.26.3 + Fiber/Gin + sqlx + golang-migrate |
+| Frontend | Vue 3 + Vite + Tailwind (`#8B5A2B`) |
+| DB | Postgres 18.4 (local) |
+| Auth | JWT 15m + refresh + bcrypt |
 
 ## Posisi Saat Ini
 - Folder: `/Users/rafiesafarazaribowo/Projects/xyz-hotel`
 - Branch: `main` (local only, belum push ke GitHub)
-- Device: MacBook Air M4, local Postgres 18.4 / MySQL 9.6, PHP 8.2, Node 26
-- Aturan keras: **NO Next.js**
-
-## Struktur Rencana (akan jadi monorepo)
-```
-xyz-hotel/
-├── app/          # Frontend website (pilihan stack masih di-grill)
-├── backend/      # API + logic booking
+- Device: MacBook Air M4, Go 1.26.3, Node 26, Postgres 18.4
+- Aturan keras: **NO Next.js — Backend Go + Frontend Vue**
 ├── docs/         # Dokumentasi Fase 0 (sudah ada 6 file)
 ├── AGENTS.md     # Aturan kerja agent
 └── README.md
@@ -30,18 +32,21 @@ xyz-hotel/
 | `docs/04-roles-permissions.md` | 4 role + matriks izin |
 | `docs/05-booking-flow-and-edge-cases.md` | Alur booking + edge cases ekstrem |
 | `docs/06-context-and-constraints.md` | Konteks portfolio, local-first, security |
-
-## Cara Jalan (nanti setelah stack final)
+## Cara Jalan (Fase 1 nanti)
 ```bash
-# Belum ada — akan diisi setelah grill selesai
+# Backend Go
+cd backend && go run ./cmd/server
+# Frontend Vue
+cd frontend && npm install && npm run dev
 ```
 
-## Definition of Done Fase 0
+## Definition of Done Fase 0 — ✅ SELESAI
 - [x] Folder + git init lokal
-- [x] 6 file docs terisi
-- [ ] Tech stack final disepakati (tanpa Next.js)
-- [ ] 4 role + flow booking disepakati
-- [ ] Siap lanjut ke Fase 1 (scaffolding)
+- [x] 8 file docs terisi (00-07 + AGENTS + README)
+- [x] Tech stack locked: **Go + Vue + Postgres** (tanpa Next.js)
+- [x] 4 role + flow booking locked (expired 12 jam, 14:00/12:00, 18 unit seed)
+- [x] Design token locked `#8B5A2B`
+- [ ] Siap lanjut ke Fase 1 (scaffolding) + push GitHub
 
 ## Next Step
-Jawab grill Q1 di `docs/03-tech-stack-decision.md` — pilih: Laravel + Inertia Vue / Nuxt / SvelteKit / Dart Frog.
+Buat repo GitHub `xyz-hotel` + scaffolding `backend/` (Go Fiber) + `frontend/` (Vue Vite)
