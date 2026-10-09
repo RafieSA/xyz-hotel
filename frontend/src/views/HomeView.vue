@@ -11,6 +11,11 @@ import Message from 'primevue/message'
 import Checkbox from 'primevue/checkbox'
 import Dialog from 'primevue/dialog'
 import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves, Heart, Search, Award, Utensils, Car, BedDouble, X, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-vue-next'
+import RoomCard from '../components/RoomCard.vue'
+import HeroSearch from '../components/HeroSearch.vue'
+import ResortGallery from '../components/ResortGallery.vue'
+import AddonsLoyaltySection from '../components/AddonsLoyaltySection.vue'
+import GuestReviewsSection from '../components/GuestReviewsSection.vue'
 import { ref, watch, computed, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
@@ -600,13 +605,6 @@ function loadLeaflet(){
 
 onMounted(()=>{
   fetchRoomTypes(); fetchReviews(); fetchMyBookings(); fetchWishlist(); fetchGallery(); fetchLoyalty(); fetchAddons(); loadLeaflet()
-  // auto carousel rotation
-  setInterval(()=>{
-    rooms.forEach(r=>{
-      const imgs=galleryImages.value[r.id]||fallbackGallery[r.id]
-      if(imgs) carouselIndex.value[r.id]=(carouselIndex.value[r.id]+1)%imgs.length
-    })
-  }, 4000)
 })
 watch(()=>auth.isAuthenticated, ()=>{ fetchWishlist(); fetchLoyalty(); fetchMyBookings() })
 
@@ -633,44 +631,23 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
         <h1 class="font-display font-bold text-4xl md:text-5xl leading-tight mt-4" style="font-family:'Playfair Display',serif">{{ t('hero.title') }}<br /><span class="t-shimmer-text t-shimmer--hero text-[#C9A86A]" :data-text="t('hero.subtitle')">{{ t('hero.subtitle') }}</span></h1>
         <p class="mt-4 text-white/80 max-w-2xl mx-auto text-base">{{ t('hero.desc') }}</p>
 
-        <!-- Search box -->
-        <div class="mt-8 bg-white dark:bg-[#2D3748] dark:border dark:border-[#4A5568] rounded-2xl shadow-lg p-4 md:p-5 flex flex-col md:flex-row gap-3 items-stretch md:items-end text-left max-w-4xl mx-auto">
-          <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> {{ t('search.checkin') }}</label>
-            <DatePicker v-model="checkIn" :placeholder="t('search.selectDate')" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
-          </div>
-          <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> {{ t('search.checkout') }}</label>
-            <DatePicker v-model="checkOut" :placeholder="t('search.selectDate')" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
-          </div>
-          <div class="w-full md:w-36">
-            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Users class="w-3.5 h-3.5" /> {{ t('search.guests') }}</label>
-            <select v-model="guests" class="mt-1 w-full border border-[#E5E7EB] rounded-2xl px-3 py-2.5 text-sm text-[#1F2937] bg-white focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/30 focus:border-[#8B5A2B]">
-              <option :value="1">{{ t('search.guest1') }}</option>
-              <option :value="2">{{ t('search.guest2') }}</option>
-              <option :value="3">{{ t('search.guest3') }}</option>
-              <option :value="4">{{ t('search.guest4') }}</option>
-            </select>
-          </div>
-          <Button :label="loadingAvail ? 'Checking...' : 'Check Availability'" :loading="loadingAvail" icon="pi pi-search" class="md:w-auto w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-2xl !px-8 !py-3 font-semibold whitespace-nowrap" @click="onSearch" />
+        <!-- Integrated Floating Hero Search -->
+        <div class="mt-8">
+          <HeroSearch
+            v-model:checkIn="checkIn"
+            v-model:checkOut="checkOut"
+            v-model:guests="guests"
+            v-model:voucherCode="voucherCode"
+            :loading-avail="loadingAvail"
+            :voucher-validating="voucherValidating"
+            :voucher-info="voucherInfo"
+            :voucher-error="voucherError"
+            :avail-error="availError"
+            @search="onSearch"
+            @validate-voucher="validateVoucher"
+            @clear-voucher="voucherInfo = null; voucherCode = ''"
+          />
         </div>
-        <!-- Voucher input -->
-        <div class="mt-4 bg-white dark:bg-[#2D3748] dark:border dark:border-[#4A5568] rounded-2xl shadow p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end max-w-4xl mx-auto text-left">
-          <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide">{{ t('voucher.label') }}</label>
-            <InputText v-model="voucherCode" placeholder="Enter code, e.g. HEMAT20" :placeholder="t('voucher.placeholder')" class="w-full mt-1 !rounded-xl" />
-          </div>
-          <Button :label="voucherValidating ? t('voucher.applied') : t('voucher.apply')" :loading="voucherValidating" icon="pi pi-ticket" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-6 whitespace-nowrap" @click="validateVoucher" />
-          <div v-if="voucherInfo" class="flex flex-col justify-center text-left sm:text-right">
-            <span class="text-xs text-[#6B7280]">Discount</span>
-            <span class="font-bold text-[#2E7D32] text-lg">{{ voucherInfo.discount_percent ?? voucherInfo.discount }}% OFF</span>
-            <span class="text-xs text-[#6B7280]">Min {{ voucherInfo.min_nights }} nights. You selected {{ nightsCount() }} nights</span>
-          </div>
-        </div>
-        <div class="t-input-wrap" :class="voucherShake ? 'is-error' : ''"><p v-if="voucherError" class="t-error-msg !opacity-100" :style="voucherShake ? '' : 'display:none'">{{ voucherError }}</p></div><Message v-if="voucherError" severity="error" class="max-w-4xl mx-auto mt-2 text-left text-xs">{{ voucherError }}</Message>
-        <Message v-if="voucherInfo" severity="success" class="max-w-4xl mx-auto mt-2 text-left text-xs">Voucher {{ voucherCode }} applied. Your room price drops {{ voucherInfo.discount_percent ?? voucherInfo.discount }}% at checkout.</Message>
-        <Message v-if="availError" severity="error" class="max-w-4xl mx-auto mt-3 text-left">{{ availError }}</Message>
-        <p class="mt-3 text-xs text-white/60">Free cancellation. Pay at the hotel. No hidden fees. Weekend Fri Sat +20%.</p>
       </div>
     </section>
 
@@ -712,87 +689,35 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
         </div>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-        <div v-for="r in displayedRooms" :key="r.type" class="t-tilt" @pointermove="onCardTilt" @pointerleave="onCardLeave"><div class="t-tilt-card t-card-resize h-full"><Card :id="'room-card-' + r.id" :class="selectedRoomId===r.id ? 'ring-2 ring-[#8B5A2B] ring-offset-2 dark:ring-[#C9A86A]' : ''" class="overflow-hidden !rounded-2xl !shadow-sm hover:!shadow-md transition-all duration-200 !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] h-full">
-          <template #header>
-            <div class="relative">
-              <img :src="r.img" :alt="r.type + ' room'" class="w-full aspect-[16/10] object-cover" />
-              <span class="absolute top-3 left-3 bg-white/95 backdrop-blur text-[#1A3A4A] text-xs font-bold rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm"><Star class="w-3.5 h-3.5 text-[#C9A86A] fill-[#C9A86A]" /> {{ avgRating(r.id).toFixed(1) }} <span v-if="ratingCount(r.id)" class="font-normal text-[#6B7280]">({{ ratingCount(r.id) }})</span></span>
-              <span class="absolute top-3 right-3 bg-[#8B5A2B] text-white text-xs font-semibold rounded-full px-2.5 py-1">{{ r.type }}</span>
-              <button @click="toggleWishlist(r); if(!isWished(r.id)) burstLike(r.id)" :disabled="wishLoading===r.id" class="t-like absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center hover:scale-105 transition border border-white" :data-liked="isWished(r.id) ? 'true' : 'false'" :class="wishBurst[r.id] ? 'is-bursting' : ''" :aria-label="isWished(r.id) ? 'Remove from wishlist' : 'Add to wishlist'">
-                <span class="t-like-icon flex items-center justify-center"><Heart class="t-like-heart w-5 h-5" /></span>
-                <span class="t-like-particles"><i v-for="n in 8" :key="n" :style="{ '--px': (Math.cos(n*45*Math.PI/180)*20)+'px', '--py': (Math.sin(n*45*Math.PI/180)*20)+'px', '--pdelay': (n*18)+'ms', '--psize': (0.9 + Math.random()*0.6).toFixed(2) }"></i></span>
-              </button>
-            </div>
-          </template>
-          <template #title><span class="text-[#1A3A4A] font-display font-semibold">{{ r.type }}</span></template>
-          <template #subtitle><span class="text-xs text-[#6B7280] flex items-center gap-1.5"><Bed class="w-3.5 h-3.5" /> Sleeps {{ r.cap }} · {{ r.facility }}</span><div class="mt-1"><Rating :modelValue="Math.round(avgRating(r.id))" readonly :stars="5" class="!gap-0.5" /></div></template>
-          <template #content>
-            <div class="space-y-1">
-              <p class="font-bold text-[#8B5A2B] text-lg leading-none">Rp {{ fmt(r.price) }} <span class="font-normal text-sm text-[#6B7280]">/ night</span></p>
-              <p v-if="weekendMultiplier(checkIn && checkIn.value, checkOut && checkOut.value)>1" class="text-xs font-semibold text-[#8B5A2B]">Weekend rate +20% applied</p>
-              <p v-if="voucherInfo" class="text-sm font-semibold text-[#2E7D32]">Rp {{ fmt(discountedPrice(r)) }} / night <span class="text-xs font-normal text-[#6B7280]">Save {{ voucherInfo.discount_percent ?? voucherInfo.discount }}%</span></p>
-              <p v-if="canSearch" class="text-xs text-[#6B7280]">Base {{ nightsCount() }} nights: <span class="font-semibold text-[#1A3A4A]">Rp {{ fmt(baseNightPrice(r)*nightsCount()) }}</span> <span v-if="voucherInfo" class="line-through text-[#9CA3AF] ml-1">Rp {{ fmt(r.price*nightsCount()) }}</span></p>
-              <p v-if="addonsTotal>0" class="text-xs text-[#6B7280]">Add-ons: <span class="font-semibold text-[#1A3A4A]">Rp {{ fmt(addonsTotal) }}</span></p>
-              <p v-if="useLoyalty && loyaltyCanRedeem" class="text-xs font-semibold text-[#C9A86A]">Loyalty -Rp 100.000</p>
-              <p v-if="canSearch" class="text-sm font-bold text-[#1A3A4A] dark:text-[#FDF6EC] border-t border-[#F3F4F6] dark:border-[#4A5568] pt-1 mt-1">Total: Rp {{ fmt(totalForRoom(r)) }}</p>
-            </div>
-            <div v-if="availMap[r.id]" class="mt-2">
-              <Tag :value="availText(r)" :severity="availSeverity(r)" rounded class="text-xs" />
-              <p class="text-xs text-[#6B7280] mt-1">Occupied: {{ availMap[r.id].occupied }} · Available: {{ availMap[r.id].available }}</p>
-            </div>
-            <p v-else-if="canSearch" class="text-xs text-[#9CA3AF] mt-2">Select dates to check availability</p>
-          </template>
-          <template #footer>
-            <div class="flex gap-2 pt-1">
-              <Button label="View Details" outlined class="!rounded-xl !text-[#8B5A2B] !border-[#8B5A2B] flex-1 !py-2 text-sm" @click="carouselIndex[r.id]=(carouselIndex[r.id]+1)%(galleryImages[r.id]?.length||5)" />
-              <Button :label="bookingLoading === r.type ? 'Reserving...' : 'Reserve This Room'" :loading="bookingLoading === r.type" :disabled="availMap[r.id] && availMap[r.id].available <= 0" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl flex-1 !py-2 text-sm font-semibold disabled:!bg-gray-300 disabled:!border-gray-300" @click="onBooking(r)" />
-            </div>
-          </template>
-        </Card></div></div>
+        <RoomCard
+          v-for="r in displayedRooms"
+          :key="r.id"
+          :room="r"
+          :avail="availMap[r.id]"
+          :loading-avail="loadingAvail"
+          :is-wished="isWished(r.id)"
+          :wish-loading="wishLoading === r.id"
+          :booking-loading="bookingLoading === r.type"
+          :nights="nightsCount()"
+          :can-search="canSearch"
+          :discount-percent="voucherInfo?.discount_percent ?? voucherInfo?.discount ?? 0"
+          :weekend-multiplier="weekendMultiplier(checkIn, checkOut)"
+          :avg-rating="avgRating(r.id)"
+          :rating-count="ratingCount(r.id)"
+          :is-selected="selectedRoomId === r.id"
+          @toggle-wishlist="toggleWishlist"
+          @view-details="(room) => { carouselIndex[room.id] = (carouselIndex[room.id] + 1) % (galleryImages[room.id]?.length || 5); openLightbox(room.id, carouselIndex[room.id]) }"
+          @book="onBooking"
+        />
       </div>
     </section>
 
-    <!-- Gallery premium Our Spaces -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-      <div class="text-center">
-        <h2 ref="ourSpacesRef" class="t-texts font-bold text-[#1A3A4A]" :class="ourSpacesShown ? 'is-shown' : ''" style="font-family:'Playfair Display',serif; font-size:28px"><span class="t-texts-line">Our Spaces</span><span class="t-texts-line t-texts-line--2 h-px w-16 bg-[#C9A86A] mx-auto mt-3 block"></span></h2>
-        <p class="text-[#6B7280] text-base mt-3 max-w-2xl mx-auto">Five handpicked views per room. Warm light, woven textures, Ubud calm. Tap any image to enter lightbox.</p>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
-        <div v-for="r in rooms" :key="'gal-'+r.id" class="bg-white dark:bg-[#2D3748] rounded-2xl shadow-sm border border-[#E5E7EB] dark:border-[#4A5568] overflow-hidden hover:shadow-md transition-shadow">
-          <div class="p-4 flex items-center justify-between">
-            <h3 class="font-semibold text-[#1A3A4A] flex items-center gap-2"><component :is="r.icon" class="w-4 h-4 text-[#8B5A2B]" /> {{ r.type }}</h3>
-            <span class="text-xs text-[#6B7280]">5 photos</span>
-          </div>
-          <div class="relative group overflow-hidden bg-[#FDF6EC]" style="aspect-ratio:16/10">
-            <img
-              :src="(galleryImages[r.id]||fallbackGallery[r.id])[carouselIndex[r.id]]"
-              :alt="r.type + ' gallery'"
-              class="w-full h-full object-cover cursor-zoom-in transition-transform duration-[4000ms] group-hover:scale-105"
-              style="animation: kenburns 8s ease-in-out infinite alternate"
-              @click="openLightbox(r.id, carouselIndex[r.id])"
-              @error="$event.target.src=fallbackGallery[r.id][0]"
-            />
-            <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-            <button @click="carouselIndex[r.id]=(carouselIndex[r.id]-1+(galleryImages[r.id]?.length||5))%(galleryImages[r.id]?.length||5)" class="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md transition opacity-80 group-hover:opacity-100">
-              <ChevronLeft class="w-4 h-4 text-[#1A3A4A]" />
-            </button>
-            <button @click="carouselIndex[r.id]=(carouselIndex[r.id]+1)%(galleryImages[r.id]?.length||5)" class="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md transition opacity-80 group-hover:opacity-100">
-              <ChevronRight class="w-4 h-4 text-[#1A3A4A]" />
-            </button>
-            <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-              <span v-for="(_, idx) in (galleryImages[r.id]||fallbackGallery[r.id])" :key="idx" class="w-2 h-2 rounded-full transition-colors" :style="{ background: idx===carouselIndex[r.id] ? '#8B5A2B' : '#E5E7EB', border: '1px solid rgba(255,255,255,0.8)' }"></span>
-            </div>
-          </div>
-          <div class="grid grid-cols-5 gap-2 p-3 bg-[#FDF6EC]">
-            <button v-for="(img, idx) in (galleryImages[r.id]||fallbackGallery[r.id])" :key="idx" @click="carouselIndex[r.id]=idx; openLightbox(r.id, idx)" class="relative rounded-xl overflow-hidden aspect-square border-2 transition" :class="idx===carouselIndex[r.id] ? 'border-[#8B5A2B] shadow-sm' : 'border-transparent hover:border-[#E5E7EB]'">
-              <img :src="img" :alt="r.type+' thumb '+idx" class="w-full h-full object-cover" loading="lazy" @error="$event.target.src=fallbackGallery[r.id][idx%5]" />
-            </button>
-          </div>
-          <p class="px-4 pb-4 text-xs text-[#6B7280] flex items-center gap-1"><ImageIcon class="w-3 h-3" /> {{ r.type }} gallery: tap to enlarge, swipe dots #8B5A2B</p>
-        </div>
-      </div>
-    </section>
+    <!-- Resort Showcase Gallery -->
+    <ResortGallery
+      :rooms="rooms"
+      :gallery-images="galleryImages"
+      :fallback-gallery="fallbackGallery"
+    />
 
     <!-- Map & Nearby -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
@@ -851,130 +776,31 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
       </div>
     </section>
 
-    <!-- Loyalty card -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <Card class="!rounded-2xl !border !border-[#C9A86A]/30 !shadow-sm bg-gradient-to-br from-white to-[#FDF6EC]">
-        <template #content>
-          <div class="flex flex-col md:flex-row gap-6 items-center">
-            <div class="flex-1">
-              <h3 class="font-bold text-[#1A3A4A] flex items-center gap-2" style="font-family:'Playfair Display',serif; font-size:18px"><Award class="w-5 h-5 text-[#C9A86A]" /> Loyalty Rewards</h3>
-              <div class="h-px w-12 bg-[#C9A86A] mt-2"></div>
-              <p class="text-sm text-[#6B7280] mt-2">Earn 10 points per night. 100 points = <span class="font-bold text-[#8B5A2B]">IDR 100k</span> off. Points after check out.</p>
-              <div v-if="auth.isAuthenticated" class="mt-4">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="font-semibold text-[#1A3A4A]">{{ loyaltyPoints }} points</span>
-                  <span class="text-[#6B7280]">80 / 100 to free 100k</span>
-                </div>
-                <div class="mt-2 h-2.5 bg-[#E5E7EB] rounded-full overflow-hidden">
-                  <div class="h-full bg-gradient-to-r from-[#C9A86A] to-[#8B5A2B] rounded-full transition-all" :style="{ width: Math.min(loyaltyPoints,100)+ '%' }"></div>
-                </div>
-                <div class="mt-2 h-2.5 bg-[#F3F4F6] rounded-full overflow-hidden hidden">
-                  <div class="h-full bg-[#8B5A2B]" :style="{ width: (loyaltyProgress)+ '%' }"></div>
-                </div>
-                <p class="text-xs text-[#6B7280] mt-1">Progress 80/100 demo: stay 8 nights to redeem. Fill 100 to unlock.</p>
-                <p v-if="loyaltyPoints>=100" class="text-xs font-semibold text-[#2E7D32] mt-1">You can redeem now! Tick the checkbox in booking.</p>
-              </div>
-              <p v-else class="text-xs text-[#6B7280] mt-3">Sign in to track points. Gold badge #C9A86A in navbar.</p>
-            </div>
-            <div class="w-full md:w-64 bg-white rounded-2xl border border-[#E5E7EB] p-4 shadow-sm">
-              <p class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Your progress</p>
-              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ loyaltyPoints }} <span class="text-base font-normal text-[#6B7280]">/ 100</span></p>
-              <div class="mt-3 h-2 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#C9A86A] rounded-full" :style="{ width: Math.min(loyaltyPoints,100)+'%' }"></div></div>
-              <p class="text-xs text-[#6B7280] mt-2">Example 80/100 to next reward</p>
-            </div>
-          </div>
-        </template>
-      </Card>
-    </section>
+    <!-- Add-ons & Loyalty Rewards Section -->
+    <AddonsLoyaltySection
+      :addons="addons"
+      :selected-addons="selectedAddons"
+      :is-authenticated="auth.isAuthenticated"
+      :loyalty-points="loyaltyPoints"
+      :use-loyalty="useLoyalty"
+      :loyalty-can-redeem="loyaltyCanRedeem"
+      :addons-total="addonsTotal"
+      @toggle-addon="toggleAddon"
+      @update:use-loyalty="useLoyalty = $event"
+    />
 
-    <!-- Add-ons booking accordion -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-2">
-      <div class="t-acc bg-white border border-[#E5E7EB] rounded-2xl" :data-open="addonsOpen ? 'true' : 'false'">
-        <button class="t-acc-head px-5 py-4 font-semibold text-[#1A3A4A] flex items-center justify-between w-full" @click="addonsOpen=!addonsOpen" :aria-expanded="addonsOpen ? 'true' : 'false'">
-          <span>Add-ons and details</span><span class="t-acc-chevron"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span>
-        </button>
-        <div class="t-acc-panel"><div class="t-acc-panel-inner px-5 pb-4 text-sm text-[#6B7280]">Extra beds, breakfast and loyalty points are applied at checkout. Choose dates above to see live availability.</div></div>
-      </div>
-    </section>
-    <!-- Add-ons booking -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-      <div class="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-6">
-        <h3 class="font-bold text-[#1A3A4A]" style="font-family:'Playfair Display',serif; font-size:20px">Add-ons for your stay</h3>
-        <div class="h-px w-12 bg-[#C9A86A] mt-2"></div>
-        <p class="text-sm text-[#6B7280] mt-2">Pick extras before you reserve. Total updates live with voucher and loyalty.</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <label v-for="a in addons" :key="a.id" class="flex gap-3 p-4 rounded-2xl border-2 cursor-pointer transition" :class="selectedAddons.has(a.id) ? 'border-[#8B5A2B] bg-[#FDF6EC]' : 'border-[#E5E7EB] hover:border-[#C9A86A]/40 bg-white'">
-            <input type="checkbox" :checked="selectedAddons.has(a.id)" @change="toggleAddon(a.id)" class="mt-1 accent-[#8B5A2B] w-4 h-4" />
-            <div class="flex-1">
-              <p class="font-semibold text-[#1A3A4A] text-sm flex items-center gap-1.5"><Utensils v-if="a.name==='Breakfast'" class="w-3.5 h-3.5" /><Car v-if="a.name==='Airport transfer'" class="w-3.5 h-3.5" /><BedDouble v-if="a.name==='Extra bed'" class="w-3.5 h-3.5" /> {{ a.name }}</p>
-              <p class="text-xs text-[#6B7280]">{{ a.description }}</p>
-              <p class="text-sm font-bold text-[#8B5A2B] mt-1">+ Rp {{ fmt(a.price) }}</p>
-            </div>
-          </label>
-        </div>
-        <div class="mt-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-[#FDF6EC] rounded-2xl p-4 border border-[#E5E7EB]">
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="useLoyalty" v-model="useLoyalty" :disabled="!loyaltyCanRedeem" class="w-4 h-4 accent-[#8B5A2B]" />
-            <label for="useLoyalty" class="text-sm" :class="!loyaltyCanRedeem ? 'text-[#9CA3AF]' : 'text-[#1A3A4A] font-semibold'">Apply loyalty 100 points = Rp 100.000 off</label>
-            <span v-if="!loyaltyCanRedeem" class="text-xs text-[#9CA3AF]">(need 100, you have {{ loyaltyPoints }})</span>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-[#6B7280]">Add-ons total</p>
-            <p class="font-bold text-[#1A3A4A]">Rp {{ fmt(addonsTotal) }}</p>
-            <p v-if="useLoyalty && loyaltyCanRedeem" class="text-xs text-[#C9A86A] font-semibold">Loyalty applied -100k</p>
-          </div>
-        </div>
-        <p class="text-xs text-[#6B7280] mt-3">We send addon_ids and use_loyalty on booking. Weekend pricing already included in totals above.</p>
-      </div>
-    </section>
-
-    <!-- Reviews per type -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-      <h3 class="font-display font-bold text-2xl text-[#1A3A4A]" style="font-family:'Playfair Display',serif">Guest reviews</h3>
-      <div class="h-px w-12 bg-[#C9A86A] mt-2"></div>
-      <p class="text-base text-[#6B7280] mt-2">Average rating per room type. Real reviews from guests who completed their stay.</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        <Card v-for="r in rooms" :key="'rev-'+r.id" class="!rounded-2xl !border !border-[#E5E7EB] !shadow-sm">
-          <template #title><span class="text-sm font-semibold text-[#1A3A4A]">{{ r.type }} · <span class="text-[#8B5A2B]">{{ avgRating(r.id).toFixed(1) }} <Star class="inline w-3 h-3 text-[#C9A86A] fill-[#C9A86A] -mt-0.5" /></span> <span class="text-xs text-[#6B7280]">({{ ratingCount(r.id) }} ulasan)</span></span></template>
-          <template #content>
-            <div v-if="(reviewsByType[r.id]||[]).length" class="space-y-3">
-              <div v-for="rev in (reviewsByType[r.id]||[]).slice(0,3)" :key="rev.id" class="border-b border-[#F3F4F6] pb-2 last:border-0">
-                <Rating :modelValue="rev.rating" readonly :stars="5" />
-                <p class="text-sm text-[#1A3A4A] mt-1">{{ rev.comment || '-' }}</p>
-                <p class="text-xs text-[#9CA3AF]">{{ rev.created_at ? new Date(rev.created_at).toLocaleDateString('en-GB') : '' }}</p>
-              </div>
-            </div>
-            <p v-else class="text-xs text-[#9CA3AF]">No reviews for this room yet.</p>
-          </template>
-        </Card>
-      </div>
-      <!-- Review form -->
-      <Card v-if="auth.isAuthenticated" class="mt-6 !rounded-2xl !border !border-[#E5E7EB] !shadow-sm max-w-2xl">
-        <template #title><span class="text-base font-semibold text-[#1A3A4A]">Write a review</span></template>
-        <template #subtitle><span class="text-xs text-[#6B7280]">Only for stays you have completed. One review per booking.</span></template>
-        <template #content>
-          <div class="space-y-3">
-            <div>
-              <label class="text-xs font-semibold text-[#6B7280] uppercase">Booking</label>
-              <Select v-model="reviewForm.booking_id" :options="eligibleBookings" optionLabel="id" optionValue="id" placeholder="Select a completed booking" class="w-full mt-1" :emptyMessage="'No completed bookings'">
-                <template #option="{ option }">#{{ option.id }} · Type {{ option.room_type_id }} · {{ option.check_in }} → {{ option.check_out }}</template>
-                <template #value="{ value }"><span v-if="value">#{{ value }}</span><span v-else class="text-[#9CA3AF]">Select a booking</span></template>
-              </Select>
-            </div>
-            <div>
-              <label class="text-xs font-semibold text-[#6B7280] uppercase">Rating</label>
-              <Rating v-model="reviewForm.rating" :stars="5" class="mt-1" />
-            </div>
-            <div>
-              <label class="text-xs font-semibold text-[#6B7280] uppercase">Comment</label>
-              <Textarea v-model="reviewForm.comment" rows="3" placeholder="How was your stay? What stood out?" class="w-full mt-1" autoResize />
-            </div>
-            <Button label="Submit Your Review" icon="pi pi-send" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" :loading="submittingReview" @click="submitReview" />
-          </div>
-        </template>
-      </Card>
-      <p v-else class="text-sm text-[#6B7280] mt-4">Sign in to write a review after you check out.</p>
-    </section>
+    <!-- Guest Reviews Section -->
+    <GuestReviewsSection
+      :rooms="rooms"
+      :reviews-by-type="reviewsByType"
+      :avg-rating="avgRating"
+      :rating-count="ratingCount"
+      :is-authenticated="auth.isAuthenticated"
+      :eligible-bookings="eligibleBookings"
+      :review-form="reviewForm"
+      :submitting-review="submittingReview"
+      @submit-review="submitReview"
+    />
 
     <section class="bg-[#FDF6EC] border-y border-[#E5E7EB]/60">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row gap-6 justify-between text-sm">
@@ -983,16 +809,6 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
       </div>
     </section>
 
-    <!-- Lightbox -->
-    <div v-if="lightboxOpen" class="t-modal fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" :class="lightboxOpen ? 'is-open' : ''" @click.self="lightboxOpen=false">
-      <button @click="lightboxOpen=false" class="absolute top-4 right-4 bg-white/10 hover:bg-white/20 backdrop-blur rounded-full p-2 text-white"><X class="w-6 h-6" /></button>
-      <button @click="prevLightbox" class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg"><ChevronLeft class="w-5 h-5 text-[#1A3A4A]" /></button>
-      <img :src="lightboxImages[lightboxIndex]" alt="Lightbox" class="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain" />
-      <button @click="nextLightbox" class="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg"><ChevronRight class="w-5 h-5 text-[#1A3A4A]" /></button>
-      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-        <span v-for="(_, i) in lightboxImages" :key="i" class="w-2 h-2 rounded-full" :style="{ background: i===lightboxIndex ? '#C9A86A' : 'rgba(255,255,255,0.5)' }"></span>
-      </div>
-    </div>
   </div>
 </template>
 
