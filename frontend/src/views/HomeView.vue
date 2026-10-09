@@ -34,6 +34,7 @@ const voucherCode = ref('')
 const voucherValidating = ref(false)
 const voucherInfo = ref(null)
 const voucherError = ref('')
+watch(voucherError, v=>{ if(v){ voucherShake.value=true; const el=document.querySelector('.t-input-wrap .t-input'); if(el){ el.classList.remove('is-shaking'); void el.offsetWidth; el.classList.add('is-shaking'); setTimeout(()=> el.classList.remove('is-shaking'), 300) } setTimeout(()=> voucherShake.value=false, 3000) } })
 
 // Search
 const searchQuery = ref('')
@@ -82,10 +83,38 @@ const fallbackGallery = {
 
 // Gallery state
 const galleryImages = ref({}) // id -> [urls]
+const ourSpacesRef = ref(null)
+const ourSpacesShown = ref(false)
+let ourSpacesObserver = null
 const lightboxOpen = ref(false)
 const lightboxImages = ref([])
 const lightboxIndex = ref(0)
 const carouselIndex = ref({ 1:0, 2:0, 3:0, 4:0 })
+const TILT_MAX = 10
+function onCardTilt(e){
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const wrap = e.currentTarget
+  const card = wrap.querySelector(".t-tilt-card")
+  if(!card) return
+  const r = wrap.getBoundingClientRect()
+  const px = Math.min(1, Math.max(0, (e.clientX - r.left)/r.width))
+  const py = Math.min(1, Math.max(0, (e.clientY - r.top)/r.height))
+  wrap.classList.add("is-hover")
+  card.classList.add("is-tilting")
+  card.style.setProperty("--tilt-ry", ((px-0.5)*TILT_MAX).toFixed(2)+"deg")
+  card.style.setProperty("--tilt-rx", ((0.5-py)*TILT_MAX).toFixed(2)+"deg")
+  card.style.setProperty("--tilt-gx", (px*100).toFixed(1)+"%")
+  card.style.setProperty("--tilt-gy", (py*100).toFixed(1)+"%")
+}
+function onCardLeave(e){
+  const wrap = e.currentTarget
+  const card = wrap.querySelector(".t-tilt-card")
+  wrap.classList.remove("is-hover")
+  if(card){ card.classList.remove("is-tilting"); card.style.setProperty("--tilt-rx","0deg"); card.style.setProperty("--tilt-ry","0deg") }
+}
+const addonsOpen = ref(false)
+const wishBurst = ref({})
+const voucherShake = ref(false)
 
 function openLightbox(roomId, idx){
   const imgs = galleryImages.value[roomId] || fallbackGallery[roomId] || []
@@ -94,6 +123,7 @@ function openLightbox(roomId, idx){
   lightboxOpen.value = true
 }
 function nextLightbox(){ lightboxIndex.value = (lightboxIndex.value+1)%lightboxImages.value.length }
+function burstLike(id){ wishBurst.value[id]=true; setTimeout(()=> wishBurst.value[id]=false, 650) }
 function prevLightbox(){ lightboxIndex.value = (lightboxIndex.value-1+lightboxImages.value.length)%lightboxImages.value.length }
 async function fetchGallery(){
   for(const r of rooms){
@@ -587,8 +617,8 @@ function onKey(e){
   if(e.key==='ArrowRight') nextLightbox()
   if(e.key==='ArrowLeft') prevLightbox()
 }
-onMounted(()=> window.addEventListener('keydown', onKey))
-onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
+onMounted(()=>{ window.addEventListener('keydown', onKey); nextTick(()=>{ if(ourSpacesRef.value){ ourSpacesShown.value = false; void ourSpacesRef.value.offsetHeight; requestAnimationFrame(()=>{ ourSpacesShown.value = true }); if("IntersectionObserver" in window){ ourSpacesObserver = new IntersectionObserver((entries)=>{ entries.forEach(ent=>{ if(ent.isIntersecting) ourSpacesShown.value = true }) }, { threshold: 0.2 }); ourSpacesObserver.observe(ourSpacesRef.value) } else { ourSpacesShown.value = true } } }) })
+onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpacesObserver) ourSpacesObserver.disconnect() })
 
 </script>
 
@@ -600,7 +630,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
       <div class="absolute inset-0 bg-gradient-to-t from-[#1A3A4A]/80 via-[#1A3A4A]/30 to-transparent"></div>
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24 text-center text-white">
         <p class="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-4 py-1.5 text-xs tracking-widest uppercase"><MapPin class="w-3.5 h-3.5 text-[#C9A86A]" /> {{ t('hero.badge') }}</p>
-        <h1 class="font-display font-bold text-4xl md:text-5xl leading-tight mt-4" style="font-family:'Playfair Display',serif">{{ t('hero.title') }}<br /><span class="text-[#C9A86A]">{{ t('hero.subtitle') }}</span></h1>
+        <h1 class="font-display font-bold text-4xl md:text-5xl leading-tight mt-4" style="font-family:'Playfair Display',serif">{{ t('hero.title') }}<br /><span class="t-shimmer-text t-shimmer--hero text-[#C9A86A]" :data-text="t('hero.subtitle')">{{ t('hero.subtitle') }}</span></h1>
         <p class="mt-4 text-white/80 max-w-2xl mx-auto text-base">{{ t('hero.desc') }}</p>
 
         <!-- Search box -->
@@ -637,7 +667,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
             <span class="text-xs text-[#6B7280]">Min {{ voucherInfo.min_nights }} nights. You selected {{ nightsCount() }} nights</span>
           </div>
         </div>
-        <Message v-if="voucherError" severity="error" class="max-w-4xl mx-auto mt-2 text-left text-xs">{{ voucherError }}</Message>
+        <div class="t-input-wrap" :class="voucherShake ? 'is-error' : ''"><p v-if="voucherError" class="t-error-msg !opacity-100" :style="voucherShake ? '' : 'display:none'">{{ voucherError }}</p></div><Message v-if="voucherError" severity="error" class="max-w-4xl mx-auto mt-2 text-left text-xs">{{ voucherError }}</Message>
         <Message v-if="voucherInfo" severity="success" class="max-w-4xl mx-auto mt-2 text-left text-xs">Voucher {{ voucherCode }} applied. Your room price drops {{ voucherInfo.discount_percent ?? voucherInfo.discount }}% at checkout.</Message>
         <Message v-if="availError" severity="error" class="max-w-4xl mx-auto mt-3 text-left">{{ availError }}</Message>
         <p class="mt-3 text-xs text-white/60">Free cancellation. Pay at the hotel. No hidden fees. Weekend Fri Sat +20%.</p>
@@ -645,11 +675,11 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
     </section>
 
     <!-- Search ILIKE -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 pt-10">
-      <div class="bg-white dark:bg-[#2D3748] dark:border-[#4A5568] rounded-2xl shadow-sm border border-[#E5E7EB] p-4 flex flex-col sm:flex-row gap-3 items-center">
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 pt-10 overflow-hidden">
+      <div class="t-panel-reveal bg-white dark:bg-[#2D3748] dark:border-[#4A5568] rounded-2xl shadow-sm border border-[#E5E7EB] p-4 flex flex-col sm:flex-row gap-3 items-center" data-open="true">
         <div class="relative flex-1 w-full">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
-          <input :value="searchQuery" @input="onSearchInput($event.target.value)" placeholder="Search rooms: Standard, Deluxe, breakfast, balcony..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E7EB] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] placeholder:text-[#9CA3AF]" />
+          <span class="t-tt-wrap flex-1 w-full relative flex items-center"><Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF] z-10" />
+          <input :value="searchQuery" @input="onSearchInput($event.target.value)" placeholder="Search rooms: Standard, Deluxe, breakfast, balcony..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E7EB] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] placeholder:text-[#9CA3AF]" /></span>
         </div>
         <span v-if="searching" class="text-xs text-[#6B7280]">Searching...</span>
         <span v-else-if="searchQuery" class="text-xs text-[#6B7280]">{{ displayedRooms.length }} results for "{{ searchQuery }}"</span>
@@ -673,15 +703,24 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
         <p class="text-sm text-[#6B7280] dark:text-[#FDF6EC]">{{ t('search.noMatch', { query: searchQuery }) }}</p>
       </div>
 
+      <div v-if="!displayedRooms.length && !searchQuery" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+        <div v-for="n in 4" :key="n" class="t-skel rounded-2xl border border-[#E5E7EB] bg-white overflow-hidden">
+          <div class="t-skel-skeleton is-pulsing p-0">
+            <div class="t-skel-bar w-full aspect-[16/10] !rounded-none !h-auto"></div>
+            <div class="p-4 space-y-3"><div class="t-skel-bar w-3/4"></div><div class="t-skel-bar w-1/2"></div><div class="t-skel-bar w-full"></div></div>
+          </div>
+        </div>
+      </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-        <Card v-for="r in displayedRooms" :key="r.type" :id="'room-card-' + r.id" :class="selectedRoomId===r.id ? 'ring-2 ring-[#8B5A2B] ring-offset-2 dark:ring-[#C9A86A]' : ''" class="overflow-hidden !rounded-2xl !shadow-sm hover:!shadow-md hover:-translate-y-0.5 transition-all duration-200 !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
+        <div v-for="r in displayedRooms" :key="r.type" class="t-tilt" @pointermove="onCardTilt" @pointerleave="onCardLeave"><div class="t-tilt-card t-card-resize h-full"><Card :id="'room-card-' + r.id" :class="selectedRoomId===r.id ? 'ring-2 ring-[#8B5A2B] ring-offset-2 dark:ring-[#C9A86A]' : ''" class="overflow-hidden !rounded-2xl !shadow-sm hover:!shadow-md transition-all duration-200 !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] h-full">
           <template #header>
             <div class="relative">
               <img :src="r.img" :alt="r.type + ' room'" class="w-full aspect-[16/10] object-cover" />
               <span class="absolute top-3 left-3 bg-white/95 backdrop-blur text-[#1A3A4A] text-xs font-bold rounded-full px-2.5 py-1 flex items-center gap-1 shadow-sm"><Star class="w-3.5 h-3.5 text-[#C9A86A] fill-[#C9A86A]" /> {{ avgRating(r.id).toFixed(1) }} <span v-if="ratingCount(r.id)" class="font-normal text-[#6B7280]">({{ ratingCount(r.id) }})</span></span>
               <span class="absolute top-3 right-3 bg-[#8B5A2B] text-white text-xs font-semibold rounded-full px-2.5 py-1">{{ r.type }}</span>
-              <button @click="toggleWishlist(r)" :disabled="wishLoading===r.id" class="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center hover:scale-105 transition border border-white" :aria-label="isWished(r.id) ? 'Remove from wishlist' : 'Add to wishlist'">
-                <Heart class="w-5 h-5 transition-colors" :class="isWished(r.id) ? 'fill-[#8B5A2B] text-[#8B5A2B]' : 'text-[#9CA3AF]'" />
+              <button @click="toggleWishlist(r); if(!isWished(r.id)) burstLike(r.id)" :disabled="wishLoading===r.id" class="t-like absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white/95 backdrop-blur shadow-md flex items-center justify-center hover:scale-105 transition border border-white" :data-liked="isWished(r.id) ? 'true' : 'false'" :class="wishBurst[r.id] ? 'is-bursting' : ''" :aria-label="isWished(r.id) ? 'Remove from wishlist' : 'Add to wishlist'">
+                <span class="t-like-icon flex items-center justify-center"><Heart class="t-like-heart w-5 h-5" /></span>
+                <span class="t-like-particles"><i v-for="n in 8" :key="n" :style="{ '--px': (Math.cos(n*45*Math.PI/180)*20)+'px', '--py': (Math.sin(n*45*Math.PI/180)*20)+'px', '--pdelay': (n*18)+'ms', '--psize': (0.9 + Math.random()*0.6).toFixed(2) }"></i></span>
               </button>
             </div>
           </template>
@@ -709,15 +748,14 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
               <Button :label="bookingLoading === r.type ? 'Reserving...' : 'Reserve This Room'" :loading="bookingLoading === r.type" :disabled="availMap[r.id] && availMap[r.id].available <= 0" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl flex-1 !py-2 text-sm font-semibold disabled:!bg-gray-300 disabled:!border-gray-300" @click="onBooking(r)" />
             </div>
           </template>
-        </Card>
+        </Card></div></div>
       </div>
     </section>
 
     <!-- Gallery premium Our Spaces -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
       <div class="text-center">
-        <h2 class="font-bold text-[#1A3A4A]" style="font-family:'Playfair Display',serif; font-size:28px">Our Spaces</h2>
-        <div class="h-px w-16 bg-[#C9A86A] mx-auto mt-3"></div>
+        <h2 ref="ourSpacesRef" class="t-texts font-bold text-[#1A3A4A]" :class="ourSpacesShown ? 'is-shown' : ''" style="font-family:'Playfair Display',serif; font-size:28px"><span class="t-texts-line">Our Spaces</span><span class="t-texts-line t-texts-line--2 h-px w-16 bg-[#C9A86A] mx-auto mt-3 block"></span></h2>
         <p class="text-[#6B7280] text-base mt-3 max-w-2xl mx-auto">Five handpicked views per room. Warm light, woven textures, Ubud calm. Tap any image to enter lightbox.</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
@@ -849,6 +887,15 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
       </Card>
     </section>
 
+    <!-- Add-ons booking accordion -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+      <div class="t-acc bg-white border border-[#E5E7EB] rounded-2xl" :data-open="addonsOpen ? 'true' : 'false'">
+        <button class="t-acc-head px-5 py-4 font-semibold text-[#1A3A4A] flex items-center justify-between w-full" @click="addonsOpen=!addonsOpen" :aria-expanded="addonsOpen ? 'true' : 'false'">
+          <span>Add-ons and details</span><span class="t-acc-chevron"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span>
+        </button>
+        <div class="t-acc-panel"><div class="t-acc-panel-inner px-5 pb-4 text-sm text-[#6B7280]">Extra beds, breakfast and loyalty points are applied at checkout. Choose dates above to see live availability.</div></div>
+      </div>
+    </section>
     <!-- Add-ons booking -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <div class="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-6">
@@ -937,7 +984,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
     </section>
 
     <!-- Lightbox -->
-    <div v-if="lightboxOpen" class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" @click.self="lightboxOpen=false">
+    <div v-if="lightboxOpen" class="t-modal fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" :class="lightboxOpen ? 'is-open' : ''" @click.self="lightboxOpen=false">
       <button @click="lightboxOpen=false" class="absolute top-4 right-4 bg-white/10 hover:bg-white/20 backdrop-blur rounded-full p-2 text-white"><X class="w-6 h-6" /></button>
       <button @click="prevLightbox" class="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-3 shadow-lg"><ChevronLeft class="w-5 h-5 text-[#1A3A4A]" /></button>
       <img :src="lightboxImages[lightboxIndex]" alt="Lightbox" class="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain" />

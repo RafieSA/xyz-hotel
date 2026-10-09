@@ -23,6 +23,7 @@ const selectedFile = ref({})
 const cancellingId = ref(null)
 const invoicingId = ref(null)
 const showCancel = ref(false)
+const openAcc = ref({})
 const cancelTarget = ref(null)
 const wishlist = ref([])
 const wishlistLoading = ref(false)
@@ -165,7 +166,12 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
 
     <Message v-if="!bookings.length && !loading" severity="info" class="!rounded-xl">{{ t('bookings.noBookings') }}</Message>
 
-    <div v-for="b in bookings" :key="b.id" class="border border-[#E5E7EB] dark:border-[#4A5568] rounded-2xl bg-white dark:bg-[#2D3748] shadow-sm p-5 md:p-6 space-y-4 hover:shadow-md transition-shadow">
+    <div v-for="b in bookings" :key="b.id" class="t-acc border border-[#E5E7EB] dark:border-[#4A5568] rounded-2xl bg-white dark:bg-[#2D3748] shadow-sm hover:shadow-md transition-shadow" :data-open="openAcc[b.id] ? 'true' : 'false'">
+      <button class="t-acc-head p-5 md:p-6 w-full" @click="openAcc[b.id]=!openAcc[b.id]" :aria-expanded="openAcc[b.id] ? 'true' : 'false'">
+        <span class="text-left flex-1"><span class="font-semibold text-[#1A3A4A] dark:text-[#FDF6EC]">#{{ b.id }} · {{ b.room_type_name || b.roomType?.name || 'Room #'+b.room_type_id }}</span> <span class="text-xs text-[#6B7280] ml-2">{{ b.check_in }} to {{ b.check_out }}</span></span>
+        <span class="t-acc-chevron ml-3"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6.5L8 10.5L12 6.5"/></svg></span>
+      </button>
+      <div class="t-acc-panel"><div class="t-acc-panel-inner px-5 md:px-6 pb-5 md:pb-6 space-y-4">
       <div class="flex flex-wrap gap-3 items-start justify-between">
         <div>
           <p class="font-bold text-[#1A3A4A] flex items-center gap-2 flex-wrap">Booking #{{ b.id }} <Tag :value="b.status.replace('_',' ')" :severity="statusSeverity(b.status)" rounded class="capitalize text-xs" /></p>
@@ -200,7 +206,8 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
       <div v-else-if="b.status==='cancelled'" class="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">Cancelled.</div>
 
       <!-- Actions row: Cancel + Invoice -->
-      <div class="flex flex-wrap gap-2 pt-2 border-t border-[#F3F4F6]">
+      </div></div>
+      <div class="flex flex-wrap gap-2 pt-2 border-t border-[#F3F4F6] px-5 md:px-6 pb-5">
         <Button v-if="canCancel(b.status)" label="Cancel booking" icon="pi pi-times" severity="danger" outlined class="!rounded-xl !py-2 text-sm" :loading="cancellingId===b.id" @click="confirmCancel(b)">
           <template #icon><XCircle class="w-4 h-4" /></template>
         </Button>

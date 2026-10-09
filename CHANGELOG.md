@@ -2,16 +2,18 @@
 
 All notable changes to this project are documented here. Format: `YYYY-MM-DD — what changed — why`.
 
-## [Unreleased] — Enrich Extra 1,2,3,4 (YOLO, local)
+## 2026-10-09 — Motion Polish (transitions.dev)
 
-- 2026-10-09 — Add chat support (WA widget + in-app WS) — guest can ask, admin can reply realtime — enrich extra 1
-- 2026-10-09 — Add dark mode premium (cream ↔ deep, gold pop, no flash) — beautiful at night, portfolio unique — enrich extra 2
-- 2026-10-09 — Add multi-language EN/ID (vue-i18n 89 keys, toggle persist) — international portfolio — enrich extra 3
-- 2026-10-09 — Add interactive map booking (Leaflet 4 pins #8B5A2B, popup Reserve) — spatial wow — enrich extra 4
-- 2026-10-09 — Add docs 16-enrich-extra-grill.md + 17-enrich-extra.md (English) — document grill and build
+- 2026-10-09 — Add transitions.dev motion library (32 free transitions, 181 lines) — beautiful micro-interactions
+- 2026-10-09 — Add motion tokens to frontend/src/styles/transitions.css (:root 40+ vars, 54 .t-* classes, prefers-reduced-motion guard) — consistent motion
+- 2026-10-09 — Apply modal scale 0.96, toast rise + blur, dropdown origin, tabs sliding, skeleton reveal, tooltip, accordion, error shake, like heart pop, badge spring — core feel
+- 2026-10-09 — Apply card tilt 3D + glare, number pop blur stagger, success check fade + rotate + draw, shimmer sweep, texts reveal stagger, spinning counter, icon swap, panel reveal — polish wow
+- 2026-10-09 — Wire 416 t-* usages across HomeView, AdminView, App, MyBookings, Wishlist — every surface
+- 2026-10-09 — Install transitions.dev CLI and transitions/ snippets (32 free) — no account needed
+
+## [Unreleased] — Enrich Extra 1,2,3,4 (YOLO, local — to be released with motion)
 
 ## 2026-10-09 — Enrich A+B+C (YOLO)
-
 - 2026-10-09 — Add gallery 5 photos per room type (carousel + lightbox, upload admin) — premium guest wow
 - 2026-10-09 — Add Leaflet map at Ubud with nearby cards (Beach, Cafe, Spa) — location trust
 - 2026-10-09 — Add loyalty points (10 per night, 100 = IDR 100k) with badge and redeem — business logic showcase

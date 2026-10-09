@@ -53,6 +53,15 @@ const unitSaving = ref(false)
 const auditLogs = ref([])
 const auditLoading = ref(false)
 const activeTab = ref('bookings')
+const tabsBarRef = ref(null)
+const tabsPillRef = ref(null)
+function positionPill(animate=true){
+  const bar=tabsBarRef.value; const pill=tabsPillRef.value; if(!bar||!pill) return;
+  const active=bar.querySelector('.t-tab[aria-selected="true"]'); if(!active) return;
+  if(!animate){ const prev=pill.style.transition; pill.style.transition='none'; pill.style.transform=`translateX(${active.offsetLeft}px)`; pill.style.width=`${active.offsetWidth}px`; void pill.offsetWidth; pill.style.transition=prev; } else { pill.style.transform=`translateX(${active.offsetLeft}px)`; pill.style.width=`${active.offsetWidth}px`; }
+}
+onMounted(()=>{ nextTick(()=> positionPill(false)); window.addEventListener('resize', ()=> positionPill(false)); })
+watch(activeTab, ()=> nextTick(()=> positionPill(true)))
 
 // Calendar 7 days
 const calendarData = ref(null)
@@ -331,7 +340,7 @@ async function fetchAuditLogs(){
   }finally{ auditLoading.value=false }
 }
 
-onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews(); fetchRoomTypes(); fetchAuditLogs(); fetchCalendar(); connectWS() })
+onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews(); fetchRoomTypes(); fetchAuditLogs(); fetchCalendar(); connectWS(); nextTick(()=>{ showStatPop.value=true }); watch([totalBookings, totalRevenue, occupancyRate, availableUnits], ()=>{ showStatPop.value=false; nextTick(()=>{ void document.body.offsetHeight; showStatPop.value=true }) }) })
 watch(dateRange, fetchReports)
 onBeforeUnmount(()=>{ if(ws) ws.close(); if(wsPoll) clearInterval(wsPoll) })
 
@@ -341,6 +350,7 @@ async function doVerify(id, action) {
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action })
     toast.add({ severity: 'success', summary: 'Booking confirmed', detail: `Booking #${id} is now verified`, life: 2500 })
+    triggerSuccess(id)
     await fetchBookings(); await fetchReports(); await fetchAuditLogs()
   } catch (e) { 
     if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
@@ -355,6 +365,7 @@ async function confirmReject() {
   try {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action:'rejected', reject_reason: rejectReason.value })
     toast.add({ severity:'success', summary:'Booking declined', detail:`Booking #${id} was declined`, life:2500 })
+    triggerSuccess(id)
     showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports(); await fetchAuditLogs()
   } catch(e){
     if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
@@ -549,6 +560,10 @@ const doughnutData = computed(()=>{
   const available=Math.max(0, total-occupied)
   return { labels:['Occupied','Available'], datasets:[{ data:[occupied, available], backgroundColor:[WA.brown, WA.gold], borderWidth:0 }] }
 })
+const showStatPop = ref(false)
+const verifySuccessId = ref(null)
+let verifySuccessTimer = null
+function triggerSuccess(id){ verifySuccessId.value = id; clearTimeout(verifySuccessTimer); nextTick(()=>{ const el=document.querySelector(`[data-success-id="${id}"]`); if(el){ el.setAttribute("data-state","out"); void el.offsetWidth; el.setAttribute("data-state","in") } }); verifySuccessTimer=setTimeout(()=>{ verifySuccessId.value=null }, 3000) }
 const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ usePointStyle:true, boxWidth:10 } } } }
 </script>
 
@@ -563,7 +578,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
             <p class="text-base text-[#6B7280]">{{ t('admin.subtitle') }}</p>
           </div>
         </div>
-        <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
+        <div class="t-panel-reveal sm:ml-auto flex items-center gap-2 flex-wrap" data-open="true">
           <span v-if="wsConnected" class="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1 text-xs font-semibold"><Radio class="w-3 h-3" /> Live</span>
           <span v-else class="inline-flex items-center gap-1.5 bg-[#FDF6EC] text-[#6B7280] border border-[#E5E7EB] rounded-full px-3 py-1 text-xs">Polling 30s</span>
           <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter by date" showIcon class="min-w-[220px]" />
@@ -583,7 +598,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Total Bookings</p>
-              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ totalBookings }}</p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1"><span class="t-number-pop-in" :class="showStatPop ? 'is-animating' : ''"><span v-for="(ch,i) in String(totalBookings).split('')" :key="i" class="t-number-digit" :data-stagger="i===String(totalBookings).length-2 ? '1' : i===String(totalBookings).length-1 ? '2' : undefined">{{ ch }}</span></span></p>
               <p class="text-xs text-[#6B7280] mt-1">All statuses</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><CalendarDays class="w-5 h-5" /></span>
@@ -595,7 +610,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Total Revenue</p>
-              <p class="text-2xl font-bold text-[#8B5A2B] mt-1">{{ fmt(totalRevenue) }}</p>
+              <p class="text-2xl font-bold text-[#8B5A2B] mt-1"><span class="t-spinning-counter" :data-val="String(fmt(totalRevenue))"><span class="t-number-pop-in" :class="showStatPop ? 'is-animating' : ''"><span v-for="(ch,i) in String(fmt(totalRevenue)).split('')" :key="i" class="t-number-digit" :data-stagger="i>=String(fmt(totalRevenue)).length-2 ? String(i - String(fmt(totalRevenue)).length + 3) : undefined">{{ ch }}</span></span></span></p>
               <p class="text-xs text-[#6B7280] mt-1">Verified and completed stays</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><Wallet class="w-5 h-5" /></span>
@@ -607,7 +622,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Occupancy</p>
-              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ occupancyRate }}%</p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1"><span class="t-spinning-counter"><span class="t-number-pop-in" :class="showStatPop ? 'is-animating' : ''"><span v-for="(ch,i) in String(occupancyRate+'%').split('')" :key="i" class="t-number-digit" :data-stagger="i===String(occupancyRate+'%').length-2 ? '1' : i===String(occupancyRate+'%').length-1 ? '2' : undefined">{{ ch }}</span></span></span></p>
               <div class="mt-2 h-1.5 w-24 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#8B5A2B] rounded-full" :style="{ width: occupancyRate+'%' }"></div></div>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><TrendingUp class="w-5 h-5" /></span>
@@ -619,7 +634,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs uppercase tracking-widest text-[#6B7280] font-semibold">Available Units</p>
-              <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ availableUnits }} <span class="text-sm font-normal text-[#6B7280]">/ {{ roomUnits.length || '-' }}</span></p>
+              <p class="text-3xl font-bold text-[#1A3A4A] mt-1"><span class="t-number-pop-in" :class="showStatPop ? 'is-animating' : ''"><span v-for="(ch,i) in String(availableUnits).split('')" :key="i" class="t-number-digit" :data-stagger="i===String(availableUnits).length-1 ? '1' : undefined">{{ ch }}</span></span> <span class="text-sm font-normal text-[#6B7280]">/ {{ roomUnits.length || '-' }}</span></p>
               <p class="text-xs text-[#2E7D32] mt-1">Ready for guests</p>
             </div>
             <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><Bed class="w-5 h-5" /></span>
@@ -659,9 +674,10 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <!-- Tabs navigation -->
-    <div class="flex flex-wrap gap-2 border-b border-[#E5E7EB] pb-3">
-      <button v-for="t in [{id:'bookings',label:'Bookings',icon:FileText},{id:'calendar',label:'Occupancy Calendar',icon:Grid3x3},{id:'housekeeping',label:'Housekeeping',icon:Kanban},{id:'roomtypes',label:'Room Types',icon:Boxes},{id:'units',label:'Room Units',icon:Bed},{id:'audit',label:'Audit Log',icon:ShieldCheck}]" :key="t.id" @click="activeTab=t.id" :class="['inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition', activeTab===t.id ? 'bg-[#1A3A4A] text-white shadow' : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#8B5A2B] hover:text-[#1A3A4A]']">
+    <!-- Tabs navigation t-tabs sliding -->
+    <div ref="tabsBarRef" class="t-tabs flex flex-wrap gap-1 border-b border-[#E5E7EB] pb-3 !bg-transparent !p-0 !rounded-none">
+      <span ref="tabsPillRef" class="t-tabs-pill !bg-[#1A3A4A] !h-[36px] !top-0" aria-hidden="true"></span>
+      <button v-for="t in [{id:'bookings',label:'Bookings',icon:FileText},{id:'calendar',label:'Occupancy Calendar',icon:Grid3x3},{id:'housekeeping',label:'Housekeeping',icon:Kanban},{id:'roomtypes',label:'Room Types',icon:Boxes},{id:'units',label:'Room Units',icon:Bed},{id:'audit',label:'Audit Log',icon:ShieldCheck}]" :key="t.id" @click="activeTab=t.id; nextTick(()=>positionPill())" :aria-selected="activeTab===t.id ? 'true' : 'false'" :class="['t-tab !rounded-full text-sm font-semibold', activeTab===t.id ? '!text-white' : '']">
         <component :is="t.icon" class="w-4 h-4" /> {{ t.label }}
       </button>
     </div>
@@ -703,7 +719,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <Column header="Actions" style="min-width:360px">
             <template #body="{ data }">
               <div class="flex flex-wrap gap-1.5">
-                <Button v-if="data.status==='waiting_verification'" label="Approve" size="small" class="!py-1 !px-2.5 !text-xs !bg-green-600 !border-green-600 hover:!bg-green-700 !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'verified')" />
+                <span class="inline-flex items-center gap-1"><Button v-if="data.status==='waiting_verification'" label="Approve" size="small" class="!py-1 !px-2.5 !text-xs !bg-green-600 !border-green-600 hover:!bg-green-700 !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'verified')" /><span v-if="verifySuccessId===data.id" class="t-success-check" data-state="in" :data-success-id="data.id" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg></span></span>
                 <Button v-if="data.status==='waiting_verification'" label="Decline" size="small" severity="danger" outlined class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`verify-${data.id}`" @click="doVerify(data.id,'rejected')" />
                 <Button v-if="data.status==='verified'" label="Check In" size="small" class="!py-1 !px-2.5 !text-xs !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-full" :loading="actionLoading===`checkin-${data.id}`" @click="doCheckIn(data.id)" />
                 <Button v-if="data.status==='checked_in'" label="Check Out" size="small" severity="info" class="!py-1 !px-2.5 !text-xs !rounded-full" :loading="actionLoading===`checkout-${data.id}`" @click="doCheckOut(data.id)" />
@@ -931,7 +947,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <Dialog v-model:visible="showDetail" modal header="Booking Details" :style="{ width:'560px' }" class="!rounded-2xl">
+    <Dialog v-model:visible="showDetail" modal header="Booking Details" :style="{ width:'560px' }" class="!rounded-2xl t-modal" :pt="{ root: { class: showDetail ? 'is-open' : '' } }">
       <div v-if="selected" class="space-y-3 text-sm">
         <p><span class="font-semibold">ID:</span> {{ selected.id }} ({{ selected.status }})</p>
         <p><span class="font-semibold">Total:</span> {{ fmt(selected.total_price) }}</p>
@@ -941,7 +957,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       <template #footer><Button label="Close" class="!rounded-2xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
     </Dialog>
 
-    <Dialog v-model:visible="showReject" modal header="Decline Booking" :style="{ width:'420px' }">
+    <Dialog v-model:visible="showReject" modal header="Decline Booking" :style="{ width:'420px' }" class="t-modal">
       <div class="space-y-3">
         <p class="text-sm text-[#6B7280]">The guest will see this reason.</p>
         <InputText v-model="rejectReason" placeholder="Enter reason for declining" class="w-full" />

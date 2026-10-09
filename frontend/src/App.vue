@@ -12,6 +12,7 @@ import { useAuthStore } from './stores/auth'
 const { locale, t } = useI18n()
 const { isDark, toggleTheme } = useTheme()
 const auth = useAuthStore()
+const mobileMenuOpen = ref(false)
 const wishlistCount = ref(0)
 const loyaltyPoints = ref(null)
 
@@ -67,17 +68,28 @@ if(typeof window !== 'undefined'){
           <a href="#" class="hover:text-[#C9A86A] transition-colors">{{ t('nav.contact') }}</a>
         </div>
         <div class="flex items-center gap-2 sm:gap-2">
-          <button @click="toggleLocale" class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-sm transition-colors" :title="locale==='en' ? 'Switch to ID' : 'Switch to EN'" :aria-label="locale==='en' ? 'Switch to Indonesian' : 'Switch to English'">
+          <span class="t-tt-wrap"><button @click="toggleLocale" class="t-tt-trigger w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-sm transition-colors" :aria-label="locale==='en' ? 'Switch to Indonesian' : 'Switch to English'">
             {{ locale==='en' ? '🇬🇧' : '🇮🇩' }}
-          </button>
-          <button @click="toggleTheme" class="w-9 h-9 rounded-full bg-[#8B5A2B] hover:bg-[#6F4620] text-white flex items-center justify-center shadow-sm border border-white/20 transition-colors" :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'" :title="isDark ? 'Light mode' : 'Dark mode'">
-            <Moon v-if="!isDark" class="w-4 h-4" />
-            <Sun v-else class="w-4 h-4" />
-          </button>
-          <RouterLink to="/wishlist" class="relative p-2 rounded-full hover:bg-white/10 transition-colors" aria-label="Wishlist">
-            <Heart class="w-5 h-5" :class="wishlistCount>0 ? 'fill-[#C9A86A] text-[#C9A86A]' : 'text-white'" />
-            <span v-if="wishlistCount>0" class="absolute -top-1 -right-1 bg-[#8B5A2B] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border border-white">{{ wishlistCount > 99 ? '99+' : wishlistCount }}</span>
-          </RouterLink>
+          </button><span class="t-tt" role="tooltip">{{ locale==='en' ? 'Switch to ID' : 'Switch to EN' }}</span></span>
+          <span class="t-tt-wrap"><button @click="toggleTheme" class="t-tt-trigger w-9 h-9 rounded-full bg-[#8B5A2B] hover:bg-[#6F4620] text-white flex items-center justify-center shadow-sm border border-white/20 transition-colors" :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
+            <span class="t-icon-swap" :data-state="isDark ? 'b' : 'a'"><span class="t-icon" data-icon="a"><Moon class="w-4 h-4" /></span><span class="t-icon" data-icon="b"><Sun class="w-4 h-4" /></span></span>
+          </button><span class="t-tt" role="tooltip">{{ isDark ? 'Light mode' : 'Dark mode' }}</span></span>
+          <div class="relative md:hidden">
+            <button @click="mobileMenuOpen=!mobileMenuOpen" class="p-2 rounded-full hover:bg-white/10 transition-colors" aria-label="Menu">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <div class="t-dropdown absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-[#E5E7EB] py-2 z-50" :class="mobileMenuOpen ? 'is-open' : ''" data-origin="top-right" @click="mobileMenuOpen=false">
+              <RouterLink to="/" class="block px-4 py-2 text-sm text-[#1A3A4A] hover:bg-[#FDF6EC]">Rooms</RouterLink>
+              <RouterLink to="/bookings" class="block px-4 py-2 text-sm text-[#1A3A4A] hover:bg-[#FDF6EC]">Bookings</RouterLink>
+              <RouterLink to="/wishlist" class="block px-4 py-2 text-sm text-[#1A3A4A] hover:bg-[#FDF6EC]">Wishlist</RouterLink>
+            </div>
+          </div>
+          <span class="t-tt-wrap hidden sm:inline-block" style="position:relative">
+            <RouterLink to="/wishlist" class="t-tt-trigger relative p-2 rounded-full hover:bg-white/10 transition-colors flex items-center justify-center" aria-label="Wishlist">
+              <Heart class="w-5 h-5" :class="wishlistCount>0 ? 'fill-[#C9A86A] text-[#C9A86A]' : 'text-white'" />
+              <span class="t-badge" :data-open="wishlistCount>0 ? 'true' : 'false'"><span v-if="wishlistCount>0" class="t-badge-dot absolute -top-1 -right-1 bg-[#8B5A2B] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border border-white">{{ wishlistCount > 99 ? '99+' : wishlistCount }}</span></span>
+            </RouterLink><span class="t-tt" role="tooltip">Wishlist</span>
+          </span>
           <div v-if="auth.isAuthenticated && loyaltyPoints!==null" class="hidden sm:flex items-center gap-1.5 bg-[#C9A86A] text-[#1A3A4A] rounded-full px-3 py-1.5 text-xs font-bold shadow-sm" title="Loyalty points: 10 per night, 100 points = IDR 100k">
             <Award class="w-3.5 h-3.5" /> {{ loyaltyPoints }} pts
           </div>

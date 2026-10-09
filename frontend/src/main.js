@@ -8,6 +8,7 @@ import { WarmAura } from './theme/aura'
 import i18n from './i18n/index.js'
 import { initTheme } from './composables/useTheme.js'
 import './style.css'
+import './styles/transitions.css'
 
 initTheme()
 
