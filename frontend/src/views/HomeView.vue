@@ -14,12 +14,14 @@ import { Bed, Users, Calendar, Star, MapPin, Wifi, Coffee, Waves, Heart, Search,
 import { ref, watch, computed, onMounted, nextTick, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import client from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const toast = useToast()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 const checkIn = ref(null)
 const checkOut = ref(null)
@@ -500,24 +502,49 @@ async function toggleWishlist(room){
   }finally{ wishLoading.value=null }
 }
 
-// Map Leaflet
+// Map Leaflet interactive 4 pins
 const mapRef = ref(null)
 const mapFailed = ref(false)
 let leafletMap=null
+const selectedRoomId = ref(null)
+function scrollToRoom(roomId){
+  selectedRoomId.value = roomId
+  const el = document.getElementById('room-card-' + roomId) || document.getElementById('rooms')
+  if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  // highlight effect
+  setTimeout(()=>{ selectedRoomId.value = null }, 2500)
+}
 function initMap(){
   const lat=-8.519, lng=115.263
   if(!mapRef.value) return
-  // check leaflet loaded
   if(typeof window==='undefined' || !window.L){
     mapFailed.value=true
     return
   }
   try{
     const L=window.L
-    leafletMap = L.map(mapRef.value).setView([lat,lng], 14)
+    leafletMap = L.map(mapRef.value, { scrollWheelZoom: false }).setView([lat,lng], 13)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap' }).addTo(leafletMap)
-    const pinIcon = L.divIcon({ className:'custom-pin', html:`<div style="background:#8B5A2B;width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);border:3px solid white"><span style="transform:rotate(45deg);color:white;font-size:16px;">📍</span></div>`, iconSize:[32,32], iconAnchor:[16,32] })
-    L.marker([lat,lng], { icon: pinIcon }).addTo(leafletMap).bindPopup('<b>xyz-hotel</b><br>Jl. Hangat No. 8B, Ubud<br>WA 0812-3456-7890')
+    const pins = [
+      { id:1, type:'Standard', price:350000, lat:-8.519, lng:115.263 },
+      { id:2, type:'Deluxe', price:550000, lat:-8.521, lng:115.265 },
+      { id:3, type:'Family', price:850000, lat:-8.517, lng:115.261 },
+      { id:4, type:'Suite', price:1250000, lat:-8.523, lng:115.267 },
+    ]
+    pins.forEach(p=>{
+      const pinIcon = L.divIcon({ className:'custom-pin', html:`<div style="background:#8B5A2B;width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.3);border:3px solid white"><span style="transform:rotate(45deg);color:white;font-size:14px;font-weight:bold;">${p.id}</span></div>`, iconSize:[32,32], iconAnchor:[16,32] })
+      const popupHtml = `<div style="font-family:Inter,sans-serif;text-align:center;min-width:140px"><b style="color:#1A3A4A">${p.type}</b><br><span style="color:#8B5A2B;font-weight:700">Rp ${new Intl.NumberFormat('id-ID').format(p.price)} / night</span><br><button data-room="${p.id}" class="reserve-btn" style="margin-top:8px;background:#8B5A2B;color:white;border:none;border-radius:9999px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer">Reserve</button></div>`
+      const marker = L.marker([p.lat,p.lng], { icon: pinIcon }).addTo(leafletMap)
+      marker.bindPopup(popupHtml)
+      marker.on('popupopen', ()=>{
+        setTimeout(()=>{
+          const btn = document.querySelector(`.reserve-btn[data-room="${p.id}"]`)
+          if(btn) btn.addEventListener('click', ()=>{ leafletMap.closePopup(); scrollToRoom(p.id) })
+        }, 100)
+      })
+    })
+    // expose for fallback
+    window._scrollToRoom = scrollToRoom
   }catch(e){
     mapFailed.value=true
   }
@@ -525,16 +552,19 @@ function initMap(){
 function loadLeaflet(){
   if(typeof document==='undefined') return
   if(window.L){ nextTick(initMap); return }
-  const link=document.createElement('link')
-  link.rel='stylesheet'
-  link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-  document.head.appendChild(link)
+  // css already in index.html
+  const existingCss = document.querySelector('link[href*="leaflet.css"]')
+  if(!existingCss){
+    const link=document.createElement('link')
+    link.rel='stylesheet'
+    link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+    document.head.appendChild(link)
+  }
   const script=document.createElement('script')
   script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
   script.onload=()=> nextTick(initMap)
   script.onerror=()=> mapFailed.value=true
   document.head.appendChild(script)
-  // fallback timeout
   setTimeout(()=>{ if(!window.L) mapFailed.value=true }, 5000)
 }
 
@@ -563,44 +593,44 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <div>
+  <div class="bg-[#FDF6EC] dark:bg-[#1A3A4A] transition-colors duration-200">
     <!-- Hero -->
     <section class="relative overflow-hidden bg-[#1A3A4A]">
       <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1400&q=80&auto=format&fit=crop" alt="Hotel lobby warm" class="absolute inset-0 w-full h-full object-cover opacity-50" />
       <div class="absolute inset-0 bg-gradient-to-t from-[#1A3A4A]/80 via-[#1A3A4A]/30 to-transparent"></div>
       <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24 text-center text-white">
-        <p class="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-4 py-1.5 text-xs tracking-widest uppercase"><MapPin class="w-3.5 h-3.5 text-[#C9A86A]" /> Ubud · Bali · Since 2024</p>
-        <h1 class="font-display font-bold text-4xl md:text-5xl leading-tight mt-4" style="font-family:'Playfair Display',serif">Your warm home<br /><span class="text-[#C9A86A]">in the heart of Ubud.</span></h1>
-        <p class="mt-4 text-white/80 max-w-2xl mx-auto text-base">Four room types from Standard to Suite. See the total price upfront, book in three steps, get instant confirmation.</p>
+        <p class="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-4 py-1.5 text-xs tracking-widest uppercase"><MapPin class="w-3.5 h-3.5 text-[#C9A86A]" /> {{ t('hero.badge') }}</p>
+        <h1 class="font-display font-bold text-4xl md:text-5xl leading-tight mt-4" style="font-family:'Playfair Display',serif">{{ t('hero.title') }}<br /><span class="text-[#C9A86A]">{{ t('hero.subtitle') }}</span></h1>
+        <p class="mt-4 text-white/80 max-w-2xl mx-auto text-base">{{ t('hero.desc') }}</p>
 
         <!-- Search box -->
-        <div class="mt-8 bg-white rounded-2xl shadow-lg p-4 md:p-5 flex flex-col md:flex-row gap-3 items-stretch md:items-end text-left max-w-4xl mx-auto">
+        <div class="mt-8 bg-white dark:bg-[#2D3748] dark:border dark:border-[#4A5568] rounded-2xl shadow-lg p-4 md:p-5 flex flex-col md:flex-row gap-3 items-stretch md:items-end text-left max-w-4xl mx-auto">
           <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> Check in</label>
-            <DatePicker v-model="checkIn" placeholder="Select date" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
+            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> {{ t('search.checkin') }}</label>
+            <DatePicker v-model="checkIn" :placeholder="t('search.selectDate')" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
           </div>
           <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> Check out</label>
-            <DatePicker v-model="checkOut" placeholder="Select date" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
+            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Calendar class="w-3.5 h-3.5" /> {{ t('search.checkout') }}</label>
+            <DatePicker v-model="checkOut" :placeholder="t('search.selectDate')" dateFormat="dd/mm/yy" showIcon class="w-full mt-1" />
           </div>
           <div class="w-full md:w-36">
-            <label class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide flex items-center gap-1.5"><Users class="w-3.5 h-3.5" /> Guests</label>
+            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide flex items-center gap-1.5"><Users class="w-3.5 h-3.5" /> {{ t('search.guests') }}</label>
             <select v-model="guests" class="mt-1 w-full border border-[#E5E7EB] rounded-2xl px-3 py-2.5 text-sm text-[#1F2937] bg-white focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/30 focus:border-[#8B5A2B]">
-              <option :value="1">1 Guest</option>
-              <option :value="2">2 Guests</option>
-              <option :value="3">3 Guests</option>
-              <option :value="4">4 Guests</option>
+              <option :value="1">{{ t('search.guest1') }}</option>
+              <option :value="2">{{ t('search.guest2') }}</option>
+              <option :value="3">{{ t('search.guest3') }}</option>
+              <option :value="4">{{ t('search.guest4') }}</option>
             </select>
           </div>
           <Button :label="loadingAvail ? 'Checking...' : 'Check Availability'" :loading="loadingAvail" icon="pi pi-search" class="md:w-auto w-full !bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-2xl !px-8 !py-3 font-semibold whitespace-nowrap" @click="onSearch" />
         </div>
         <!-- Voucher input -->
-        <div class="mt-4 bg-white rounded-2xl shadow p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end max-w-4xl mx-auto text-left">
+        <div class="mt-4 bg-white dark:bg-[#2D3748] dark:border dark:border-[#4A5568] rounded-2xl shadow p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end max-w-4xl mx-auto text-left">
           <div class="flex-1">
-            <label class="text-xs font-semibold text-[#6B7280] uppercase tracking-wide">Voucher code (optional)</label>
-            <InputText v-model="voucherCode" placeholder="Enter code, e.g. HEMAT20" class="w-full mt-1 !rounded-xl" />
+            <label class="text-xs font-semibold text-[#6B7280] dark:text-[#C9A86A] uppercase tracking-wide">{{ t('voucher.label') }}</label>
+            <InputText v-model="voucherCode" placeholder="Enter code, e.g. HEMAT20" :placeholder="t('voucher.placeholder')" class="w-full mt-1 !rounded-xl" />
           </div>
-          <Button :label="voucherValidating ? 'Applying...' : 'Apply Voucher'" :loading="voucherValidating" icon="pi pi-ticket" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-6 whitespace-nowrap" @click="validateVoucher" />
+          <Button :label="voucherValidating ? t('voucher.applied') : t('voucher.apply')" :loading="voucherValidating" icon="pi pi-ticket" class="!bg-[#8B5A2B] !border-[#8B5A2B] hover:!bg-[#6F4620] !rounded-xl !px-6 whitespace-nowrap" @click="validateVoucher" />
           <div v-if="voucherInfo" class="flex flex-col justify-center text-left sm:text-right">
             <span class="text-xs text-[#6B7280]">Discount</span>
             <span class="font-bold text-[#2E7D32] text-lg">{{ voucherInfo.discount_percent ?? voucherInfo.discount }}% OFF</span>
@@ -616,7 +646,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
 
     <!-- Search ILIKE -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 pt-10">
-      <div class="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] p-4 flex flex-col sm:flex-row gap-3 items-center">
+      <div class="bg-white dark:bg-[#2D3748] dark:border-[#4A5568] rounded-2xl shadow-sm border border-[#E5E7EB] p-4 flex flex-col sm:flex-row gap-3 items-center">
         <div class="relative flex-1 w-full">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
           <input :value="searchQuery" @input="onSearchInput($event.target.value)" placeholder="Search rooms: Standard, Deluxe, breakfast, balcony..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E7EB] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] placeholder:text-[#9CA3AF]" />
@@ -631,20 +661,20 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
     <section id="rooms" class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16">
       <div class="flex items-end justify-between gap-4">
         <div>
-          <h2 class="font-display font-bold text-3xl text-[#1A3A4A]" style="font-family:'Playfair Display',serif; font-size:28px">Choose your room</h2>
+          <h2 class="font-display font-bold text-3xl text-[#1A3A4A] dark:text-[#FDF6EC]" style="font-family:'Playfair Display',serif; font-size:28px">{{ t('filter.title') }}</h2>
           <div class="h-px w-16 bg-[#C9A86A] mt-2"></div>
-          <p class="text-[#6B7280] text-base mt-2">Four room types. One price per night, tax included.</p>
+          <p class="text-[#6B7280] dark:text-[#FDF6EC]/70 text-base mt-2">{{ t('filter.subtitle') }}</p>
         </div>
         <span class="hidden md:inline-flex items-center gap-1.5 text-xs bg-[#FDF6EC] text-[#8B5A2B] border border-[#8B5A2B]/20 rounded-full px-3 py-1.5 font-semibold"><Wifi class="w-3.5 h-3.5" /> Free Wi-Fi · Breakfast</span>
       </div>
 
       <div v-if="canSearch && loadingAvail" class="mt-6 text-center text-sm text-[#6B7280]">Checking availability...</div>
       <div v-if="displayedRooms.length===0" class="mt-8 text-center py-12 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
-        <p class="text-sm text-[#6B7280]">No rooms match "{{ searchQuery }}". Try another keyword.</p>
+        <p class="text-sm text-[#6B7280] dark:text-[#FDF6EC]">{{ t('search.noMatch', { query: searchQuery }) }}</p>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-        <Card v-for="r in displayedRooms" :key="r.type" class="overflow-hidden !rounded-2xl !shadow-sm hover:!shadow-md hover:-translate-y-0.5 transition-all duration-200 !border !border-[#E5E7EB]">
+        <Card v-for="r in displayedRooms" :key="r.type" :id="'room-card-' + r.id" :class="selectedRoomId===r.id ? 'ring-2 ring-[#8B5A2B] ring-offset-2 dark:ring-[#C9A86A]' : ''" class="overflow-hidden !rounded-2xl !shadow-sm hover:!shadow-md hover:-translate-y-0.5 transition-all duration-200 !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
           <template #header>
             <div class="relative">
               <img :src="r.img" :alt="r.type + ' room'" class="w-full aspect-[16/10] object-cover" />
@@ -665,7 +695,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
               <p v-if="canSearch" class="text-xs text-[#6B7280]">Base {{ nightsCount() }} nights: <span class="font-semibold text-[#1A3A4A]">Rp {{ fmt(baseNightPrice(r)*nightsCount()) }}</span> <span v-if="voucherInfo" class="line-through text-[#9CA3AF] ml-1">Rp {{ fmt(r.price*nightsCount()) }}</span></p>
               <p v-if="addonsTotal>0" class="text-xs text-[#6B7280]">Add-ons: <span class="font-semibold text-[#1A3A4A]">Rp {{ fmt(addonsTotal) }}</span></p>
               <p v-if="useLoyalty && loyaltyCanRedeem" class="text-xs font-semibold text-[#C9A86A]">Loyalty -Rp 100.000</p>
-              <p v-if="canSearch" class="text-sm font-bold text-[#1A3A4A] border-t border-[#F3F4F6] pt-1 mt-1">Total: Rp {{ fmt(totalForRoom(r)) }}</p>
+              <p v-if="canSearch" class="text-sm font-bold text-[#1A3A4A] dark:text-[#FDF6EC] border-t border-[#F3F4F6] dark:border-[#4A5568] pt-1 mt-1">Total: Rp {{ fmt(totalForRoom(r)) }}</p>
             </div>
             <div v-if="availMap[r.id]" class="mt-2">
               <Tag :value="availText(r)" :severity="availSeverity(r)" rounded class="text-xs" />
@@ -691,7 +721,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
         <p class="text-[#6B7280] text-base mt-3 max-w-2xl mx-auto">Five handpicked views per room. Warm light, woven textures, Ubud calm. Tap any image to enter lightbox.</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
-        <div v-for="r in rooms" :key="'gal-'+r.id" class="bg-white rounded-2xl shadow-sm border border-[#E5E7EB] overflow-hidden hover:shadow-md transition-shadow">
+        <div v-for="r in rooms" :key="'gal-'+r.id" class="bg-white dark:bg-[#2D3748] rounded-2xl shadow-sm border border-[#E5E7EB] dark:border-[#4A5568] overflow-hidden hover:shadow-md transition-shadow">
           <div class="p-4 flex items-center justify-between">
             <h3 class="font-semibold text-[#1A3A4A] flex items-center gap-2"><component :is="r.icon" class="w-4 h-4 text-[#8B5A2B]" /> {{ r.type }}</h3>
             <span class="text-xs text-[#6B7280]">5 photos</span>
@@ -729,14 +759,14 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
     <!-- Map & Nearby -->
     <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
       <div class="text-center">
-        <h2 class="font-bold text-[#1A3A4A]" style="font-family:'Playfair Display',serif; font-size:28px">Map & Nearby</h2>
+        <h2 class="font-bold text-[#1A3A4A] dark:text-[#FDF6EC]" style="font-family:'Playfair Display',serif; font-size:28px">{{ t('map.title') }}</h2>
         <div class="h-px w-16 bg-[#C9A86A] mx-auto mt-3"></div>
-        <p class="text-[#6B7280] text-base mt-3">Find us in central Ubud. Pin #8B5A2B at -8.519, 115.263. Walk to cafe, spa, beach.</p>
+        <p class="text-[#6B7280] dark:text-[#C9A86A]/80 text-base mt-3">{{ t('map.desc') }}</p>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
         <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-[#E5E7EB] overflow-hidden">
-          <div v-if="!mapFailed" ref="mapRef" class="w-full h-[380px] bg-[#FDF6EC]"></div>
-          <div v-else class="w-full h-[380px] bg-[#FDF6EC] flex flex-col items-center justify-center p-6 text-center">
+          <div v-if="!mapFailed" ref="mapRef" id="map" class="w-full h-[400px] bg-[#FDF6EC] dark:bg-[#2D3748] rounded-2xl"></div>
+          <div v-else class="w-full h-[400px] bg-[#FDF6EC] dark:bg-[#2D3748] flex flex-col items-center justify-center p-6 text-center">
             <img src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80&auto=format&fit=crop" alt="Map fallback Ubud" class="w-full h-48 object-cover rounded-2xl" />
             <p class="mt-4 font-semibold text-[#1A3A4A]">Jl. Hangat No. 8B, Ubud, Bali</p>
             <p class="text-sm text-[#6B7280]">-8.519, 115.263 · Open in Google Maps</p>
@@ -748,7 +778,7 @@ onBeforeUnmount(()=> window.removeEventListener('keydown', onKey))
           </div>
         </div>
         <div class="space-y-4">
-          <div class="bg-[#FDF6EC] rounded-2xl border border-[#E5E7EB] p-5">
+          <div class="bg-[#FDF6EC] dark:bg-[#2D3748] rounded-2xl border border-[#E5E7EB] dark:border-[#4A5568] p-5">
             <h3 class="font-semibold text-[#1A3A4A] flex items-center gap-2"><MapPin class="w-4 h-4 text-[#8B5A2B]" /> Nearby</h3>
             <div class="mt-4 space-y-3">
               <div class="bg-white rounded-2xl p-4 border border-[#E5E7EB] flex items-center justify-between">

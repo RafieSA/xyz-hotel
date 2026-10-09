@@ -149,6 +149,7 @@ func main() {
 	var roomImageHandler *handler.RoomImageHandler
 	var addonHandler *handler.AddonHandler
 	var loyaltyHandler *handler.LoyaltyHandler
+	var chatHandler *handler.ChatHandler
 	if db != nil {
 		userRepo := repo.NewUserRepo(db)
 		roomRepo := repo.NewRoomRepo(db)
@@ -195,6 +196,9 @@ func main() {
 		// Loyalty
 		loyaltySvc := service.NewLoyaltyService(db)
 		loyaltyHandler = handler.NewLoyaltyHandler(loyaltySvc)
+		// Chat
+		messageRepo := repo.NewMessageRepo(db)
+		chatHandler = handler.NewChatHandler(messageRepo, bookingRepo)
 	}
 
 	// Public auth routes
@@ -286,10 +290,27 @@ func main() {
 		app.Post("/api/wishlist/toggle", middleware.Auth(jwtSecret), wishlistHandler.Toggle)
 		app.Delete("/api/wishlist/:room_type_id", middleware.Auth(jwtSecret), wishlistHandler.Delete)
 	}
+	// Chat (auth required)
+	if chatHandler != nil {
+		chat := app.Group("/api/chat", middleware.Auth(jwtSecret))
+		chat.Post("/", chatHandler.PostChat)
+		chat.Get("/", chatHandler.GetChat)
+		chat.Get("/conversations", chatHandler.GetConversations)
+		// also without trailing slash
+		app.Post("/api/chat", middleware.Auth(jwtSecret), chatHandler.PostChat)
+		app.Get("/api/chat", middleware.Auth(jwtSecret), chatHandler.GetChat)
+		app.Get("/api/chat/conversations", middleware.Auth(jwtSecret), chatHandler.GetConversations)
+		// Admin inbox
+		app.Get("/api/admin/chat/messages", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist), chatHandler.GetAdminMessages)
+	}
 
 	// WebSocket admin realtime (Auth+RBAC) — must be before admin group to allow upgrade
 	if db != nil && bookingHandler != nil {
 		app.Get("/ws/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist), handler.WsAdmin, websocket.New(handler.WsAdminHandler))
+	}
+	// WebSocket chat realtime (Auth, any role) shares same hub for broadcast
+	if db != nil && chatHandler != nil {
+		app.Get("/ws/chat", middleware.Auth(jwtSecret), handler.WsChat, websocket.New(handler.WsChatHandler))
 	}
 
 	// Admin (owner/manager only) if db available

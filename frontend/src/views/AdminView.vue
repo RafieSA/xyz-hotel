@@ -16,9 +16,11 @@ import Rating from 'primevue/rating'
 import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed, ShieldCheck, Boxes, FileText, Download, Plus, Pencil, Trash2, Upload, Grid3x3, Kanban, Radio } from 'lucide-vue-next'
 import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import client from '../api/client'
 
 const toast = useToast()
+const { t } = useI18n()
 const bookings = ref([])
 const roomUnits = ref([])
 const loading = ref(false)
@@ -557,8 +559,8 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         <div class="flex items-center gap-3">
           <span class="bg-[#8B5A2B] text-white rounded-2xl p-2.5 shadow-sm"><LayoutDashboard class="w-5 h-5" /></span>
           <div>
-            <h1 class="font-display font-bold text-3xl text-[#1A3A4A] tracking-tight" style="font-family:'Playfair Display',serif">Dashboard</h1>
-            <p class="text-base text-[#6B7280]">Manage bookings, rooms, and reports. WarmAura hierarchy, premium control.</p>
+            <h1 class="font-display font-bold text-3xl text-[#1A3A4A] dark:text-[#FDF6EC] tracking-tight" style="font-family:'Playfair Display',serif">{{ t('admin.title') }}</h1>
+            <p class="text-base text-[#6B7280]">{{ t('admin.subtitle') }}</p>
           </div>
         </div>
         <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
@@ -576,7 +578,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
 
     <!-- 4 stats cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] hover:!shadow-md transition-shadow">
         <template #content>
           <div class="flex items-start justify-between">
             <div>
@@ -588,7 +590,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           </div>
         </template>
       </Card>
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] hover:!shadow-md transition-shadow">
         <template #content>
           <div class="flex items-start justify-between">
             <div>
@@ -600,7 +602,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           </div>
         </template>
       </Card>
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] hover:!shadow-md transition-shadow">
         <template #content>
           <div class="flex items-start justify-between">
             <div>
@@ -612,7 +614,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           </div>
         </template>
       </Card>
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] hover:!shadow-md transition-shadow">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] hover:!shadow-md transition-shadow">
         <template #content>
           <div class="flex items-start justify-between">
             <div>
@@ -628,13 +630,13 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
 
     <!-- Charts -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] lg:col-span-2">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] lg:col-span-2">
         <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Revenue per Day</span></template>
         <template #content>
           <div class="h-[260px]"><Chart type="line" :data="revenueChartData" :options="revenueChartOptions" /></div>
         </template>
       </Card>
-      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
         <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Occupancy vs Availability</span></template>
         <template #content>
           <div class="h-[260px] flex items-center justify-center"><Chart type="doughnut" :data="doughnutData" :options="doughnutOptions" /></div>
@@ -642,14 +644,14 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         </template>
       </Card>
     </div>
-    <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Bookings by Room Type</span></template>
       <template #content>
         <div class="h-[260px]"><Chart type="bar" :data="barChartData" :options="barChartOptions" /></div>
       </template>
     </Card>
 
-    <Card v-if="bookingsByStatus" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] bg-[#FDF6EC]/40">
+    <Card v-if="bookingsByStatus" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] bg-[#FDF6EC]/40">
       <template #content>
         <div class="flex flex-wrap gap-2 text-xs">
           <span v-for="(v,k) in bookingsByStatus" :key="k" class="bg-white border border-[#E5E7EB] rounded-full px-3 py-1"><span class="font-semibold text-[#1A3A4A] capitalize">{{ k.replace('_',' ') }}</span> <span class="text-[#8B5A2B] font-bold">{{ v }}</span></span>
@@ -665,7 +667,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </div>
 
     <!-- Recent bookings -->
-    <Card v-show="activeTab==='bookings'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='bookings'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Recent bookings</span>
@@ -717,7 +719,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Occupancy Calendar 7 days -->
-    <Card v-show="activeTab==='calendar'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='calendar'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><Grid3x3 class="w-5 h-5 text-[#8B5A2B]" /> Occupancy Calendar · 7 Days</span>
@@ -759,7 +761,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Housekeeping Kanban 4 cols -->
-    <Card v-show="activeTab==='housekeeping'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='housekeeping'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><Kanban class="w-5 h-5 text-[#8B5A2B]" /> Housekeeping Kanban</span>
@@ -795,7 +797,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Room Types CRUD -->
-    <Card v-show="activeTab==='roomtypes'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='roomtypes'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Types</span>
@@ -854,7 +856,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Room units -->
-    <Card v-show="activeTab==='units'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='units'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Units</span>
@@ -883,7 +885,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Audit logs -->
-    <Card v-show="activeTab==='audit'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='audit'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title>
         <div class="flex items-center justify-between gap-2">
           <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><ShieldCheck class="w-5 h-5 text-[#8B5A2B]" /> Audit Log</span>
@@ -916,7 +918,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Reviews always visible below tabs -->
-    <Card v-if="reviews.length" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-if="reviews.length" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748]">
       <template #title><span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Reviews ({{ reviews.length }})</span><div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div></template>
       <template #content>
         <DataTable :value="reviews" paginator :rows="5" stripedRows class="text-sm">

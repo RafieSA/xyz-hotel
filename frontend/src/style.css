@@ -8,6 +8,10 @@
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
-  background: #F9FAFB;
+  background: #FDF6EC;
   color: #1F2937;
+}
+.dark body {
+  background: #1A3A4A;
+  color: #FDF6EC;
 }

@@ -7,11 +7,13 @@ import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import Dialog from 'primevue/dialog'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import client from '../api/client'
 import { Upload, Eye, Calendar, Receipt, Download, XCircle, Heart, Trash2, Bed } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 
 const toast = useToast()
+const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const bookings = ref([])
@@ -153,17 +155,17 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
       <div class="flex items-center gap-3">
         <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5 shadow-sm"><Receipt class="w-5 h-5" /></span>
         <div>
-          <h1 class="font-display font-bold text-3xl text-[#1A3A4A] tracking-tight" style="font-family:'Playfair Display',serif">My Bookings</h1>
-          <p class="text-sm text-[#6B7280] mt-1">Track your reservations, upload proof, download invoices, and manage saved rooms.</p>
+          <h1 class="font-display font-bold text-3xl text-[#1A3A4A] dark:text-[#FDF6EC] tracking-tight" style="font-family:'Playfair Display',serif">{{ t('bookings.title') }}</h1>
+          <p class="text-sm text-[#6B7280] mt-1">{{ t('bookings.desc') }}</p>
         </div>
         <Button label="Refresh" icon="pi pi-refresh" outlined class="!rounded-xl !ml-auto !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading" @click="fetchBookings" />
       </div>
       <div class="h-px bg-gradient-to-r from-[#C9A86A] via-[#C9A86A]/40 to-transparent"></div>
     </div>
 
-    <Message v-if="!bookings.length && !loading" severity="info" class="!rounded-xl">No bookings yet. Reserve your room from the home page to get started.</Message>
+    <Message v-if="!bookings.length && !loading" severity="info" class="!rounded-xl">{{ t('bookings.noBookings') }}</Message>
 
-    <div v-for="b in bookings" :key="b.id" class="border border-[#E5E7EB] rounded-2xl bg-white shadow-sm p-5 md:p-6 space-y-4 hover:shadow-md transition-shadow">
+    <div v-for="b in bookings" :key="b.id" class="border border-[#E5E7EB] dark:border-[#4A5568] rounded-2xl bg-white dark:bg-[#2D3748] shadow-sm p-5 md:p-6 space-y-4 hover:shadow-md transition-shadow">
       <div class="flex flex-wrap gap-3 items-start justify-between">
         <div>
           <p class="font-bold text-[#1A3A4A] flex items-center gap-2 flex-wrap">Booking #{{ b.id }} <Tag :value="b.status.replace('_',' ')" :severity="statusSeverity(b.status)" rounded class="capitalize text-xs" /></p>
@@ -180,7 +182,7 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
       </div>
 
       <!-- Upload proof only when pending_payment -->
-      <div v-if="b.status==='pending_payment'" class="bg-[#FDF6EC] border border-[#E5E7EB] rounded-xl p-4 space-y-3">
+      <div v-if="b.status==='pending_payment'" class="bg-[#FDF6EC] dark:bg-[#1A3A4A] border border-[#E5E7EB] dark:border-[#4A5568] rounded-xl p-4 space-y-3">
         <p class="text-sm font-semibold text-[#1A3A4A] flex items-center gap-2"><Upload class="w-4 h-4 text-[#8B5A2B]" /> Upload payment proof (JPG, PNG, or PDF, max 5MB)</p>
         <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           <input type="file" accept=".jpg,.jpeg,.png,.pdf" class="text-sm file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-[#8B5A2B] file:text-white file:text-sm hover:file:bg-[#6F4620] file:cursor-pointer" @change="e=>onFileSelect({target:e}, b.id)" />
@@ -213,7 +215,7 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
       <div class="flex items-center gap-3">
         <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2"><Heart class="w-5 h-5 fill-[#8B5A2B]" /></span>
         <div>
-          <h2 class="font-display font-bold text-xl text-[#1A3A4A]" style="font-family:'Playfair Display',serif">Saved rooms</h2>
+          <h2 class="font-display font-bold text-xl text-[#1A3A4A]" style="font-family:'Playfair Display',serif">{{ t('bookings.savedRooms') }}</h2>
           <p class="text-sm text-[#6B7280]">Your wishlist from the home page. Remove or book directly.</p>
         </div>
         <Button label="View wishlist" outlined class="!ml-auto !rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" @click="router.push('/wishlist')" />
@@ -222,11 +224,11 @@ onMounted(()=>{ fetchBookings(); fetchWishlist() })
       <div v-if="wishlistLoading" class="text-sm text-[#6B7280] py-6 text-center">Loading wishlist...</div>
       <div v-else-if="!wishlist.length" class="bg-white border border-dashed border-[#E5E7EB] rounded-2xl p-8 text-center">
         <Heart class="w-8 h-8 text-[#C9A86A] mx-auto" />
-        <p class="text-sm font-semibold text-[#1A3A4A] mt-3">No saved rooms</p>
+        <p class="text-sm font-semibold text-[#1A3A4A] mt-3">{{ t('bookings.noSaved') }}</p>
         <p class="text-xs text-[#6B7280] mt-1">Tap the heart on any room card to save it here.</p>
       </div>
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card v-for="(item, idx) in wishlist" :key="item.id || idx" class="!rounded-xl !border !border-[#E5E7EB] !shadow-sm overflow-hidden">
+        <Card v-for="(item, idx) in wishlist" :key="item.id || idx" class="!rounded-xl !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] !shadow-sm overflow-hidden">
           <template #header>
             <div class="relative">
               <img :src="resolveRoom(item).img" :alt="resolveRoom(item).type" class="w-full aspect-[16/10] object-cover" />

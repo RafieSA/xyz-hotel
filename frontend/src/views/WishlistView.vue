@@ -7,10 +7,12 @@ import Tag from 'primevue/tag'
 import Message from 'primevue/message'
 import { Heart, Trash2, Bed, HeartOff, ArrowRight, Sparkles } from 'lucide-vue-next'
 import { useToast } from 'primevue/usetoast'
+import { useI18n } from 'vue-i18n'
 import client from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 const toast = useToast()
+const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const wishlist = ref([])
@@ -85,8 +87,8 @@ onMounted(fetchWishlist)
       <div class="flex items-center gap-3">
         <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5 shadow-sm"><Heart class="w-5 h-5 fill-white" /></span>
         <div>
-          <h1 class="font-display font-bold text-3xl text-[#1A3A4A] tracking-tight" style="font-family:'Playfair Display',serif">Wishlist</h1>
-          <p class="text-sm text-[#6B7280] mt-1">Rooms you saved. Tap the heart again on the home page to toggle.</p>
+          <h1 class="font-display font-bold text-3xl text-[#1A3A4A] dark:text-[#FDF6EC] tracking-tight" style="font-family:'Playfair Display',serif">{{ t('wishlist.title') }}</h1>
+          <p class="text-sm text-[#6B7280] mt-1">{{ t('wishlist.desc') }}</p>
         </div>
         <Button label="Browse rooms" icon="pi pi-arrow-right" class="!ml-auto !bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" @click="router.push('/')" />
       </div>
@@ -98,15 +100,15 @@ onMounted(fetchWishlist)
     <div v-else>
       <div v-if="loading" class="text-center py-16 text-sm text-[#6B7280]">Loading your saved rooms...</div>
 
-      <div v-else-if="!wishlist.length" class="text-center py-16 bg-white rounded-2xl border border-[#E5E7EB] shadow-sm">
+      <div v-else-if="!wishlist.length" class="text-center py-16 bg-white dark:bg-[#2D3748] rounded-2xl border border-[#E5E7EB] dark:border-[#4A5568] shadow-sm">
         <div class="w-16 h-16 mx-auto rounded-full bg-[#FDF6EC] border border-[#E5E7EB] flex items-center justify-center"><HeartOff class="w-7 h-7 text-[#8B5A2B]" /></div>
-        <h3 class="font-display font-semibold text-lg text-[#1A3A4A] mt-4" style="font-family:'Playfair Display',serif">No saved rooms yet</h3>
-        <p class="text-sm text-[#6B7280] mt-1 max-w-md mx-auto">Tap the heart on any room card at the home page. Your favorites stay here for quick booking.</p>
+        <h3 class="font-display font-semibold text-lg text-[#1A3A4A] mt-4" style="font-family:'Playfair Display',serif">{{ t('wishlist.emptyTitle') }}</h3>
+        <p class="text-sm text-[#6B7280] mt-1 max-w-md mx-auto">{{ t('wishlist.emptyDesc') }}</p>
         <Button label="Explore rooms" icon="pi pi-search" class="!mt-6 !bg-[#1A3A4A] !border-[#1A3A4A] !rounded-xl" @click="router.push('/')" />
       </div>
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <Card v-for="(item, idx) in wishlist" :key="item.id || idx" class="overflow-hidden !rounded-xl !shadow-sm hover:!shadow-md transition-all !border !border-[#E5E7EB] group">
+        <Card v-for="(item, idx) in wishlist" :key="item.id || idx" class="overflow-hidden !rounded-xl !shadow-sm hover:!shadow-md transition-all !border !border-[#E5E7EB] dark:!border-[#4A5568] dark:!bg-[#2D3748] group">
           <template #header>
             <div class="relative overflow-hidden">
               <img :src="resolveRoom(item).image || resolveRoom(item).img" :alt="resolveRoom(item).type" class="w-full aspect-[16/10] object-cover group-hover:scale-[1.02] transition-transform duration-300" />
