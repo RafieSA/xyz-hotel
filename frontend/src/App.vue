@@ -1,13 +1,14 @@
 <script setup>
 import { RouterView, RouterLink } from 'vue-router'
 import Toast from 'primevue/toast'
-import { BedDouble, Heart } from 'lucide-vue-next'
+import { BedDouble, Heart, Award } from 'lucide-vue-next'
 import { ref, onMounted, watch } from 'vue'
 import client from './api/client'
 import { useAuthStore } from './stores/auth'
 
 const auth = useAuthStore()
 const wishlistCount = ref(0)
+const loyaltyPoints = ref(null)
 async function fetchWishlistCount(){
   if(!auth.isAuthenticated){ wishlistCount.value=0; return }
   try{
@@ -16,10 +17,25 @@ async function fetchWishlistCount(){
     wishlistCount.value = Array.isArray(list) ? list.length : 0
   }catch{ wishlistCount.value=0 }
 }
-onMounted(fetchWishlistCount)
-watch(()=>auth.isAuthenticated, fetchWishlistCount)
+async function fetchLoyalty(){
+  if(!auth.isAuthenticated){ loyaltyPoints.value=null; return }
+  try{
+    const { data } = await client.get('/api/loyalty/points')
+    const payload = data.data || data
+    loyaltyPoints.value = payload.points ?? payload.loyalty_points ?? payload.total ?? 0
+  }catch{
+    try{
+      const { data } = await client.get('/api/loyalty')
+      const p = data.data || data
+      loyaltyPoints.value = p.points ?? 0
+    }catch{ loyaltyPoints.value = null }
+  }
+}
+onMounted(()=>{ fetchWishlistCount(); fetchLoyalty() })
+watch(()=>auth.isAuthenticated, ()=>{ fetchWishlistCount(); fetchLoyalty() })
 if(typeof window !== 'undefined'){
   window.addEventListener('wishlist:updated', fetchWishlistCount)
+  window.addEventListener('loyalty:updated', fetchLoyalty)
 }
 </script>
 
@@ -43,6 +59,12 @@ if(typeof window !== 'undefined'){
             <Heart class="w-5 h-5" :class="wishlistCount>0 ? 'fill-[#C9A86A] text-[#C9A86A]' : 'text-white'" />
             <span v-if="wishlistCount>0" class="absolute -top-1 -right-1 bg-[#8B5A2B] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border border-white">{{ wishlistCount > 99 ? '99+' : wishlistCount }}</span>
           </RouterLink>
+          <div v-if="auth.isAuthenticated && loyaltyPoints!==null" class="hidden sm:flex items-center gap-1.5 bg-[#C9A86A] text-[#1A3A4A] rounded-full px-3 py-1.5 text-xs font-bold shadow-sm" title="Loyalty points: 10 per night, 100 points = IDR 100k">
+            <Award class="w-3.5 h-3.5" /> {{ loyaltyPoints }} pts
+          </div>
+          <div v-else-if="auth.isAuthenticated" class="hidden sm:flex items-center gap-1.5 bg-white/15 text-white border border-white/20 rounded-full px-3 py-1.5 text-xs font-semibold">
+            <Award class="w-3.5 h-3.5 text-[#C9A86A]" /> Loyalty
+          </div>
           <RouterLink to="/bookings" class="hidden sm:inline text-xs border border-white/30 rounded-full px-3 py-1.5 hover:bg-white hover:text-[#1A3A4A] transition-colors">My Bookings</RouterLink>
           <RouterLink to="/login" class="hidden sm:inline text-sm hover:text-[#C9A86A] transition-colors">Sign In</RouterLink>
           <RouterLink to="/admin" class="text-xs border border-white/30 rounded-full px-3 py-1 hover:bg-white hover:text-[#1A3A4A] transition-colors">Dashboard</RouterLink>
@@ -60,4 +82,3 @@ if(typeof window !== 'undefined'){
     <Toast />
   </div>
 </template>
-

@@ -27,12 +27,14 @@ export function getApiErrorDetails(err) {
   return err?.response?.data?.details || null
 }
 
-// Handle auth errors with clear messaging
+// Handle auth errors with clear messaging + rate limit 429
 client.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err.response?.status
-    if (status === 401) {
+    if (status === 429) {
+      err.userMessage = err.response?.data?.message || 'Too many requests, try again in a minute'
+    } else if (status === 401) {
       err.userMessage = 'Your session expired. Please sign in again'
     } else if (status === 403) {
       err.userMessage = err.response?.data?.message || 'You do not have permission for this'

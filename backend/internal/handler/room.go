@@ -47,6 +47,22 @@ func (h *RoomHandler) ListRoomTypesAdmin(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": list})
 }
 
+// ListRoomTypesPublic handles GET /api/room-types?q=deluxe (public, no auth) filtering ILIKE name/description where deleted_at IS NULL
+func (h *RoomHandler) ListRoomTypesPublic(c *fiber.Ctx) error {
+	q := strings.TrimSpace(c.Query("q"))
+	if q != "" {
+		list, err := h.RoomRepo.SearchRoomTypesWithRating(q)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room types. Please try again"})
+		}
+		return c.JSON(fiber.Map{"data": list})
+	}
+	list, err := h.RoomRepo.ListRoomTypesWithRating()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room types. Please try again"})
+	}
+	return c.JSON(fiber.Map{"data": list})
+}
 // CreateRoomType handles POST /api/admin/room-types (owner/manager)
 func (h *RoomHandler) CreateRoomType(c *fiber.Ctx) error {
 	var req createRoomTypeReq

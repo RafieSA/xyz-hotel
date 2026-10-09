@@ -8,6 +8,8 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
+	"github.com/gofiber/websocket/v2"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
 
@@ -105,17 +107,30 @@ func main() {
 	if err := os.MkdirAll(filepath.Join("backend", "logs"), 0755); err != nil {
 		slog.Error("failed to create backend/logs dir", "err", err)
 	}
-
 	app := fiber.New(fiber.Config{
 		AppName:   "xyz-hotel",
 		BodyLimit: 6 * 1024 * 1024, // 6MB (proof limit 5MB + overhead)
 	})
-
+	app.Static("/storage", "./storage")
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     "http://localhost:5173",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowCredentials: false,
+	}))
+	app.Use(limiter.New(limiter.Config{
+		Max:        60,
+		Expiration: 60 * time.Second,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		Next: func(c *fiber.Ctx) bool {
+			p := c.Path()
+			return p == "/health" || p == "/api/health"
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{"message": "Too many requests, try in 60s"})
+		},
 	}))
 
 	// Health checks (public)
@@ -131,6 +146,9 @@ func main() {
 	var wishlistHandler *handler.WishlistHandler
 	var roomHandler *handler.RoomHandler
 	var invoiceHandler *handler.InvoiceHandler
+	var roomImageHandler *handler.RoomImageHandler
+	var addonHandler *handler.AddonHandler
+	var loyaltyHandler *handler.LoyaltyHandler
 	if db != nil {
 		userRepo := repo.NewUserRepo(db)
 		roomRepo := repo.NewRoomRepo(db)
@@ -167,6 +185,16 @@ func main() {
 		roomHandler = handler.NewRoomHandler(roomRepo)
 		invoiceSvc := service.NewInvoiceService(db)
 		invoiceHandler = handler.NewInvoiceHandler(invoiceSvc, bookingRepo)
+		// Gallery
+		roomImageRepo := repo.NewRoomImageRepo(db)
+		roomImageHandler = handler.NewRoomImageHandler(roomImageRepo, roomRepo)
+		// Addons
+		addonRepo := repo.NewAddonRepo(db)
+		addonSvc := service.NewAddonService(db, addonRepo, bookingRepo)
+		addonHandler = handler.NewAddonHandler(addonSvc)
+		// Loyalty
+		loyaltySvc := service.NewLoyaltyService(db)
+		loyaltyHandler = handler.NewLoyaltyHandler(loyaltySvc)
 	}
 
 	// Public auth routes
@@ -181,14 +209,18 @@ func main() {
 	// Public availability + public voucher validation + reviews
 	if bookingHandler != nil {
 		app.Get("/api/availability", bookingHandler.GetAvailability)
-		app.Get("/api/room-types", func(c *fiber.Ctx) error {
-			rr := repo.NewRoomRepo(db)
-			list, err := rr.ListRoomTypesWithRating()
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room types. Please try again"})
-			}
-			return c.JSON(fiber.Map{"data": list})
-		})
+		if roomHandler != nil {
+			app.Get("/api/room-types", roomHandler.ListRoomTypesPublic)
+		} else {
+			app.Get("/api/room-types", func(c *fiber.Ctx) error {
+				rr := repo.NewRoomRepo(db)
+				list, err := rr.ListRoomTypesWithRating()
+				if err != nil {
+					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not load room types. Please try again"})
+				}
+				return c.JSON(fiber.Map{"data": list})
+			})
+		}
 		if reviewHandler != nil {
 			app.Get("/api/reviews", reviewHandler.ListReviews)
 			app.Post("/api/reviews", middleware.Auth(jwtSecret), reviewHandler.CreateReview)
@@ -201,7 +233,13 @@ func main() {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"message": "Service is temporarily unavailable. Please try again later"})
 		})
 	}
-
+	// Gallery public + addons public
+	if roomImageHandler != nil {
+		app.Get("/api/room-types/:id/images", roomImageHandler.ListImages)
+	}
+	if addonHandler != nil {
+		app.Get("/api/addons", addonHandler.ListAddons)
+	}
 	// Bookings (auth required)
 	if bookingHandler != nil {
 		bookings := app.Group("/api/bookings", middleware.Auth(jwtSecret))
@@ -209,6 +247,10 @@ func main() {
 		bookings.Post("/", bookingHandler.CreateBooking)
 		bookings.Post("/:id/proof", bookingHandler.UploadProof)
 		bookings.Patch("/:id/cancel", bookingHandler.CancelBooking)
+		if addonHandler != nil {
+			bookings.Post("/:id/addons", addonHandler.AddToBooking)
+			bookings.Get("/:id/addons", addonHandler.ListBookingAddons)
+		}
 		if invoiceHandler != nil {
 			bookings.Get("/:id/invoice", invoiceHandler.GetInvoice)
 		}
@@ -216,6 +258,10 @@ func main() {
 		app.Post("/api/bookings", middleware.Auth(jwtSecret), bookingHandler.CreateBooking)
 		app.Post("/api/bookings/:id/proof", middleware.Auth(jwtSecret), bookingHandler.UploadProof)
 		app.Patch("/api/bookings/:id/cancel", middleware.Auth(jwtSecret), bookingHandler.CancelBooking)
+		if addonHandler != nil {
+			app.Post("/api/bookings/:id/addons", middleware.Auth(jwtSecret), addonHandler.AddToBooking)
+			app.Get("/api/bookings/:id/addons", middleware.Auth(jwtSecret), addonHandler.ListBookingAddons)
+		}
 		if invoiceHandler != nil {
 			app.Get("/api/bookings/:id/invoice", middleware.Auth(jwtSecret), invoiceHandler.GetInvoice)
 		}
@@ -223,6 +269,11 @@ func main() {
 		booking := app.Group("/api/bookings")
 		booking.Get("/", handler.ListBookingsStub)
 		booking.Post("/", handler.CreateBookingStub)
+	}
+	// Loyalty (auth required)
+	if loyaltyHandler != nil {
+		app.Get("/api/loyalty/points", middleware.Auth(jwtSecret), loyaltyHandler.GetPoints)
+		app.Post("/api/loyalty/redeem", middleware.Auth(jwtSecret), loyaltyHandler.Redeem)
 	}
 	// Wishlist (auth required) - heart toggle on room cards
 	if wishlistHandler != nil {
@@ -234,6 +285,11 @@ func main() {
 		app.Get("/api/wishlist", middleware.Auth(jwtSecret), wishlistHandler.List)
 		app.Post("/api/wishlist/toggle", middleware.Auth(jwtSecret), wishlistHandler.Toggle)
 		app.Delete("/api/wishlist/:room_type_id", middleware.Auth(jwtSecret), wishlistHandler.Delete)
+	}
+
+	// WebSocket admin realtime (Auth+RBAC) — must be before admin group to allow upgrade
+	if db != nil && bookingHandler != nil {
+		app.Get("/ws/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist), handler.WsAdmin, websocket.New(handler.WsAdminHandler))
 	}
 
 	// Admin (owner/manager only) if db available
@@ -255,6 +311,7 @@ func main() {
 			admin.Get("/reports/summary", reportHandler.GetSummary)
 			admin.Get("/reports/revenue", reportHandler.GetRevenue)
 			admin.Get("/reports/occupancy", reportHandler.GetOccupancy)
+			admin.Get("/reports/export.csv", reportHandler.ExportCSV)
 		}
 		admin.Get("/rooms", func(c *fiber.Ctx) error {
 			rr := repo.NewRoomRepo(db)
@@ -273,6 +330,11 @@ func main() {
 			admin.Post("/room-units", roomHandler.CreateRoomUnit)
 			admin.Delete("/room-units/:id", roomHandler.DeleteRoomUnit)
 		}
+		if roomImageHandler != nil {
+			admin.Post("/room-types/:id/images", roomImageHandler.UploadImage)
+			admin.Delete("/room-types/:id/images/:imageId", roomImageHandler.DeleteImage)
+			admin.Delete("/room-images/:id", roomImageHandler.DeleteImage)
+		}
 		// Ops: check-in/out + room unit status allowed for owner/manager/receptionist
 		ops := app.Group("/api/admin", middleware.Auth(jwtSecret), middleware.RequireRole(model.RoleOwner, model.RoleManager, model.RoleReceptionist))
 		ops.Patch("/bookings/:id/checkin", bookingHandler.CheckIn)
@@ -286,6 +348,9 @@ func main() {
 			}
 			return c.JSON(fiber.Map{"data": list})
 		})
+		if reportHandler != nil {
+			ops.Get("/calendar", reportHandler.GetCalendar)
+		}
 	}
 	slog.Info("server starting", "port", port, "service", "xyz-hotel")
 	if err := app.Listen(":" + port); err != nil {

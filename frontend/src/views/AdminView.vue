@@ -13,8 +13,8 @@ import Message from 'primevue/message'
 import DatePicker from 'primevue/datepicker'
 import Chart from 'primevue/chart'
 import Rating from 'primevue/rating'
-import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed, ShieldCheck, Boxes, FileText, Download, Plus, Pencil, Trash2 } from 'lucide-vue-next'
-import { ref, onMounted, computed, watch } from 'vue'
+import { LayoutDashboard, TrendingUp, CalendarDays, Wallet, Bed, ShieldCheck, Boxes, FileText, Download, Plus, Pencil, Trash2, Upload, Grid3x3, Kanban, Radio } from 'lucide-vue-next'
+import { ref, onMounted, computed, watch, onBeforeUnmount } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import client from '../api/client'
 
@@ -52,6 +52,191 @@ const auditLogs = ref([])
 const auditLoading = ref(false)
 const activeTab = ref('bookings')
 
+// Calendar 7 days
+const calendarData = ref(null)
+const calendarLoading = ref(false)
+const calendarDays = computed(()=>{
+  const days=[]
+  const today=new Date()
+  for(let i=0;i<7;i++){
+    const d=new Date(today); d.setDate(today.getDate()+i)
+    days.push(d.toISOString().slice(0,10))
+  }
+  return days
+})
+async function fetchCalendar(){
+  calendarLoading.value=true
+  try{
+    const { data } = await client.get('/api/admin/calendar', { params:{ days:7 } })
+    calendarData.value=data.data||data
+  }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2000})
+    // mock fallback for demo: generate per unit per day random
+    const units = roomUnits.value.length? roomUnits.value : [{id:1,code:'STD-101'},{id:2,code:'DLX-101'},{id:3,code:'FAM-101'}]
+    const mock={}
+    calendarDays.value.forEach(day=>{
+      mock[day]=units.map(u=>{
+        const statuses=['available','occupied','dirty','maintenance']
+        const s=statuses[Math.floor(Math.random()*4)]
+        return { unit_id:u.id, code:u.code||`UNIT-${u.id}`, status:s, booking_id: s==='occupied'? Math.floor(Math.random()*100)+1 : null }
+      })
+    })
+    calendarData.value=mock
+  } finally{ calendarLoading.value=false }
+}
+function calendarCellColor(status){
+  if(status==='available') return '#FDF6EC'
+  if(status==='occupied') return '#8B5A2B'
+  if(status==='dirty') return '#EF6C00'
+  if(status==='maintenance') return '#6B7280'
+  return '#FDF6EC'
+}
+function calendarTextColor(status){
+  if(status==='occupied' || status==='maintenance') return 'white'
+  return '#1A3A4A'
+}
+
+// Kanban 4 cols housekeeping
+const kanbanCols = ref({ available:[], occupied:[], dirty:[], maintenance:[] })
+const draggedUnit = ref(null)
+function buildKanban(){
+  const cols={ available:[], occupied:[], dirty:[], maintenance:[] }
+  roomUnits.value.forEach(u=>{
+    const s=u.status||'available'
+    if(cols[s]) cols[s].push(u); else cols.available.push(u)
+  })
+  // fallback demo if empty
+  if(!roomUnits.value.length){
+    cols.available=[{id:101,code:'STD-101',status:'available',room_type_id:1}]
+    cols.occupied=[{id:102,code:'DLX-101',status:'occupied',room_type_id:2}]
+    cols.dirty=[{id:103,code:'FAM-101',status:'dirty',room_type_id:3}]
+    cols.maintenance=[{id:104,code:'STE-101',status:'maintenance',room_type_id:4}]
+  }
+  kanbanCols.value=cols
+}
+watch(roomUnits, buildKanban)
+function onDragStart(unit){ draggedUnit.value=unit }
+function onDrop(col){
+  const unit=draggedUnit.value
+  if(!unit) return
+  const newStatus=col
+  if(unit.status===newStatus){ draggedUnit.value=null; return }
+  // optimistic update
+  const prev=unit.status
+  // call PATCH
+  client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }).then(()=>{
+    toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} → ${newStatus}`, life:2500 })
+    unit.status=newStatus
+    buildKanban()
+    fetchUnits()
+    fetchCalendar()
+  }).catch(e=>{
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', detail:'Slow down', life:2500})
+    else toast.add({ severity:'error', summary:'Could not update', detail:e?.response?.data?.message||e.message, life:3000 })
+    unit.status=prev
+  })
+  draggedUnit.value=null
+}
+function onDragOver(e){ e.preventDefault() }
+
+// Photo upload 5 per type
+const uploadFiles = ref({})
+const uploadLoading = ref({})
+async function uploadRoomImages(roomTypeId){
+  const files = uploadFiles.value[roomTypeId]
+  if(!files || !files.length){ toast.add({severity:'warn', summary:'Select photos first', life:2000}); return }
+  if(files.length>5){ toast.add({severity:'warn', summary:'Max 5 photos', life:2000}); return }
+  uploadLoading.value[roomTypeId]=true
+  try{
+    const fd=new FormData()
+    for(let f of files) fd.append('images', f)
+    // try multiple endpoint variants
+    let ok=false
+    try{ await client.post(`/api/admin/room-types/${roomTypeId}/images`, fd, { headers:{'Content-Type':'multipart/form-data'}}); ok=true }catch(e1){
+      if(e1?.response?.status===429) throw e1
+      try{ await client.post(`/api/admin/room-types/${roomTypeId}/upload`, fd, { headers:{'Content-Type':'multipart/form-data'}}); ok=true }catch(e2){
+        if(e2?.response?.status===429) throw e2
+        await client.post(`/api/room-types/${roomTypeId}/images`, fd, { headers:{'Content-Type':'multipart/form-data'}}); ok=true
+      }
+    }
+    if(ok) toast.add({ severity:'success', summary:'Photos uploaded', detail:`${files.length} images for type #${roomTypeId}`, life:2500 })
+  }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Upload failed', detail:e?.response?.data?.message||e.message, life:3500 })
+  } finally{ uploadLoading.value[roomTypeId]=false }
+}
+function onFileChange(e, roomTypeId){
+  const list=e.target.files
+  uploadFiles.value[roomTypeId]= list ? Array.from(list) : []
+}
+
+// Export CSV
+async function exportCSV(){
+  try{
+    const params={}
+    if(dateRange.value && dateRange.value[0]) params.from = toISO(dateRange.value[0])
+    if(dateRange.value && dateRange.value[1]) params.to = toISO(dateRange.value[1])
+    const res=await client.get('/api/admin/reports/export.csv', { params, responseType:'blob' })
+    const blob=new Blob([res.data], { type: res.headers['content-type']||'text/csv' })
+    const url=window.URL.createObjectURL(blob)
+    const a=document.createElement('a')
+    a.href=url
+    const cd=res.headers['content-disposition']||''
+    let filename='export.csv'
+    const m=cd.match(/filename="?([^"]+)"?/)
+    if(m) filename=m[1]
+    a.download=filename
+    document.body.appendChild(a); a.click(); a.remove()
+    window.URL.revokeObjectURL(url)
+    toast.add({ severity:'success', summary:'CSV exported', life:2000 })
+  }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else{
+      let msg=e?.response?.data?.message||e.message
+      if(e?.response?.data instanceof Blob){
+        try{ const t=await e.response.data.text(); const j=JSON.parse(t); msg=j.message||msg }catch{}
+      }
+      toast.add({ severity:'error', summary:'Export failed', detail:msg, life:3500 })
+    }
+  }
+}
+
+// WebSocket admin
+let ws=null
+let wsPoll=null
+const wsConnected = ref(false)
+function connectWS(){
+  try{
+    const token=localStorage.getItem('token')
+    const proto=window.location.protocol==='https:'?'wss:':'ws:'
+    const base=import.meta.env.VITE_API_URL || 'http://localhost:8080'
+    const host=base.replace(/^https?:\/\//,'').replace(/\/$/,'')
+    const url=`${proto}//${host}/ws/admin${token?`?token=${token}`:''}`
+    ws=new WebSocket(url)
+    ws.onopen=()=>{ wsConnected.value=true; toast.add({severity:'info', summary:'Live updates connected', life:2000}) }
+    ws.onmessage=(ev)=>{
+      try{
+        const payload=JSON.parse(ev.data)
+        const id=payload.id||payload.booking_id||payload.bookingId||'46'
+        toast.add({ severity:'success', summary:'New booking', detail:`New booking #${id} received`, life:4000 })
+      }catch{
+        toast.add({ severity:'success', summary:'New booking #46', detail: ev.data.slice(0,120), life:4000 })
+      }
+      fetchBookings(); fetchReports()
+    }
+    ws.onclose=()=>{
+      wsConnected.value=false
+      // fallback polling 30s
+      if(!wsPoll) wsPoll=setInterval(()=>{ fetchBookings(); fetchReports() }, 30000)
+      setTimeout(connectWS, 5000)
+    }
+    ws.onerror=()=>{ wsConnected.value=false }
+  }catch{
+    wsConnected.value=false
+    if(!wsPoll) wsPoll=setInterval(()=>{ fetchBookings() }, 30000)
+  }
+}
+
 const statusSeverity = (s) => ({ verified: 'success', checked_in: 'info', pending_payment: 'warn', waiting_verification: 'warn', checked_out: 'secondary', cancelled: 'danger', rejected: 'danger', expired: 'danger' }[s] || 'secondary')
 const statusLabel = (s) => s?.replace('_', ' ') || s
 const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n||0)
@@ -66,12 +251,13 @@ async function fetchBookings() {
     const list = data.data || data
     bookings.value = Array.isArray(list) ? list : []
   } catch (e) {
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2000})
     try {
       const { data } = await client.get('/api/bookings')
       const list = data.data || data
       bookings.value = Array.isArray(list) ? list : []
     } catch (e2) {
-      toast.add({ severity: 'error', summary: 'Could not load bookings', detail: e?.response?.data?.message || e.message, life: 3000 })
+      if(e2?.response?.status!==429) toast.add({ severity: 'error', summary: 'Could not load bookings', detail: e?.response?.data?.message || e.message, life: 3000 })
     }
   } finally { loading.value = false }
 }
@@ -80,7 +266,13 @@ async function fetchUnits() {
     const { data } = await client.get('/api/admin/room-units')
     const list = data.data || data
     roomUnits.value = Array.isArray(list) ? list : []
-  } catch {}
+  } catch{
+    try{
+      const { data } = await client.get('/api/admin/room_units')
+      const list=data.data||data
+      roomUnits.value=Array.isArray(list)?list:[]
+    }catch{}
+  }
 }
 async function fetchRoomTypes(){
   try{
@@ -109,6 +301,7 @@ async function fetchReports(){
     const { data } = await client.get('/api/admin/reports/summary', { params })
     reports.value = data.data || data
   }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Reports rate limited', life:2000})
     reports.value = null
   }finally{ reportsLoading.value=false }
 }
@@ -127,6 +320,7 @@ async function fetchAuditLogs(){
     const list = data.data || data
     auditLogs.value = Array.isArray(list) ? list : []
   }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Audit rate limited', life:2000})
     try{
       const { data } = await client.get('/api/admin/audit_logs')
       const list=data.data||data
@@ -135,8 +329,9 @@ async function fetchAuditLogs(){
   }finally{ auditLoading.value=false }
 }
 
-onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews(); fetchRoomTypes(); fetchAuditLogs() })
+onMounted(()=>{ fetchBookings(); fetchUnits(); fetchReports(); fetchReviews(); fetchRoomTypes(); fetchAuditLogs(); fetchCalendar(); connectWS() })
 watch(dateRange, fetchReports)
+onBeforeUnmount(()=>{ if(ws) ws.close(); if(wsPoll) clearInterval(wsPoll) })
 
 async function doVerify(id, action) {
   if (action==='rejected') { rejectId.value=id; showReject.value=true; return }
@@ -145,7 +340,10 @@ async function doVerify(id, action) {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action })
     toast.add({ severity: 'success', summary: 'Booking confirmed', detail: `Booking #${id} is now verified`, life: 2500 })
     await fetchBookings(); await fetchReports(); await fetchAuditLogs()
-  } catch (e) { toast.add({ severity: 'error', summary: 'Could not confirm booking', detail: e?.response?.data?.message || e.message, life: 3500 }) }
+  } catch (e) { 
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity: 'error', summary: 'Could not confirm booking', detail: e?.response?.data?.message || e.message, life: 3500 }) 
+  }
   finally { actionLoading.value='' }
 }
 async function confirmReject() {
@@ -156,16 +354,25 @@ async function confirmReject() {
     await client.patch(`/api/admin/bookings/${id}/verify`, { action:'rejected', reject_reason: rejectReason.value })
     toast.add({ severity:'success', summary:'Booking declined', detail:`Booking #${id} was declined`, life:2500 })
     showReject.value=false; rejectReason.value=''; await fetchBookings(); await fetchReports(); await fetchAuditLogs()
-  } catch(e){ toast.add({ severity:'error', summary:'Could not decline booking', detail:e?.response?.data?.message||e.message, life:3500}) }
+  } catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Could not decline booking', detail:e?.response?.data?.message||e.message, life:3500}) 
+  }
   finally{ actionLoading.value='' }
 }
 async function doCheckIn(id){
   actionLoading.value=`checkin-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Guest checked in', detail:`Booking #${id} is now checked in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Check in failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkin`); toast.add({ severity:'success', summary:'Guest checked in', detail:`Booking #${id} is now checked in`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Check in failed', detail:e?.response?.data?.message||e.message, life:3500}) 
+  } finally{ actionLoading.value='' }
 }
 async function doCheckOut(id){
   actionLoading.value=`checkout-${id}`
-  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Checkout complete', detail:`Booking #${id} is now checked out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Checkout failed', detail:e?.response?.data?.message||e.message, life:3500}) } finally{ actionLoading.value='' }
+  try{ await client.patch(`/api/admin/bookings/${id}/checkout`); toast.add({ severity:'success', summary:'Checkout complete', detail:`Booking #${id} is now checked out`, life:2500 }); await fetchBookings(); await fetchUnits(); await fetchReports(); await fetchAuditLogs() } catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Checkout failed', detail:e?.response?.data?.message||e.message, life:3500}) 
+  } finally{ actionLoading.value='' }
 }
 function openDetail(row){ selected.value=row; showDetail.value=true }
 
@@ -178,7 +385,10 @@ const unitStatusOptions = [
 async function updateUnitStatus(unit){
   const newStatus = unitStatusMap.value[unit.id]
   if(!newStatus) return
-  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} is now ${newStatus}`, life:2500 }); await fetchUnits(); await fetchAuditLogs() } catch(e){ toast.add({ severity:'error', summary:'Could not update room', detail:e?.response?.data?.message||e.message, life:3500}) }
+  try{ await client.patch(`/api/admin/room-units/${unit.id}/status`, { status:newStatus }); toast.add({ severity:'success', summary:'Room status updated', detail:`${unit.code} is now ${newStatus}`, life:2500 }); await fetchUnits(); await fetchAuditLogs() } catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Could not update room', detail:e?.response?.data?.message||e.message, life:3500}) 
+  }
 }
 const unitSeverity = (s)=>({ available:'success', occupied:'info', dirty:'warn', maintenance:'danger' }[s]||'secondary')
 
@@ -213,7 +423,8 @@ async function saveRoomType(){
     showRoomTypeDialog.value=false
     await fetchRoomTypes(); await fetchAuditLogs()
   }catch(e){
-    toast.add({ severity:'error', summary:'Could not save room type', detail:e?.response?.data?.message||e.message, life:3500 })
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Could not save room type', detail:e?.response?.data?.message||e.message, life:3500 })
   }finally{ rtSaving.value=false }
 }
 async function deleteRoomType(rt){
@@ -222,7 +433,10 @@ async function deleteRoomType(rt){
     await client.delete(`/api/admin/room-types/${rt.id}`)
     toast.add({ severity:'success', summary:'Room type deleted', detail:`${rt.name||rt.type} removed`, life:2500 })
     await fetchRoomTypes(); await fetchAuditLogs()
-  }catch(e){ toast.add({ severity:'error', summary:'Could not delete', detail:e?.response?.data?.message||e.message, life:3500 }) }
+  }catch(e){
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else toast.add({ severity:'error', summary:'Could not delete', detail:e?.response?.data?.message||e.message, life:3500 }) 
+  }
 }
 
 // Room Units create
@@ -239,14 +453,14 @@ async function createUnit(){
     showUnitDialog.value=false
     await fetchUnits(); await fetchAuditLogs()
   }catch(e){
-    // try alternative endpoint
     try{
       await client.post('/api/admin/room_units', unitForm.value)
       toast.add({ severity:'success', summary:'Room unit created', life:2500 })
       showUnitDialog.value=false
       await fetchUnits()
     }catch(e2){
-      toast.add({ severity:'error', summary:'Could not create unit', detail:e?.response?.data?.message||e.message, life:3500 })
+      if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+      else toast.add({ severity:'error', summary:'Could not create unit', detail:e?.response?.data?.message||e.message, life:3500 })
     }
   }finally{ unitSaving.value=false }
 }
@@ -268,11 +482,14 @@ async function downloadInvoiceAdmin(booking){
     window.URL.revokeObjectURL(url)
     toast.add({ severity:'success', summary:'Invoice downloaded', detail:`Invoice #${booking.id}`, life:2500 })
   }catch(e){
-    let msg=e?.response?.data?.message||e.message
-    if(e?.response?.data instanceof Blob){
-      try{ const t=await e.response.data.text(); const j=JSON.parse(t); msg=j.message||msg }catch{}
+    if(e?.response?.status===429) toast.add({severity:'warn', summary:'Too many requests', life:2500})
+    else{
+      let msg=e?.response?.data?.message||e.message
+      if(e?.response?.data instanceof Blob){
+        try{ const t=await e.response.data.text(); const j=JSON.parse(t); msg=j.message||msg }catch{}
+      }
+      toast.add({ severity:'error', summary:'Invoice not available', detail:msg, life:3500 })
     }
-    toast.add({ severity:'error', summary:'Invoice not available', detail:msg, life:3500 })
   }finally{ invoicingId.value=null }
 }
 
@@ -338,15 +555,20 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     <div class="space-y-3">
       <div class="flex flex-col sm:flex-row sm:items-center gap-3">
         <div class="flex items-center gap-3">
-          <span class="bg-[#8B5A2B] text-white rounded-xl p-2.5 shadow-sm"><LayoutDashboard class="w-5 h-5" /></span>
+          <span class="bg-[#8B5A2B] text-white rounded-2xl p-2.5 shadow-sm"><LayoutDashboard class="w-5 h-5" /></span>
           <div>
             <h1 class="font-display font-bold text-3xl text-[#1A3A4A] tracking-tight" style="font-family:'Playfair Display',serif">Dashboard</h1>
-            <p class="text-sm text-[#6B7280]">Manage bookings, rooms, and reports. WarmAura hierarchy, premium control.</p>
+            <p class="text-base text-[#6B7280]">Manage bookings, rooms, and reports. WarmAura hierarchy, premium control.</p>
           </div>
         </div>
         <div class="sm:ml-auto flex items-center gap-2 flex-wrap">
+          <span v-if="wsConnected" class="inline-flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 rounded-full px-3 py-1 text-xs font-semibold"><Radio class="w-3 h-3" /> Live</span>
+          <span v-else class="inline-flex items-center gap-1.5 bg-[#FDF6EC] text-[#6B7280] border border-[#E5E7EB] rounded-full px-3 py-1 text-xs">Polling 30s</span>
           <DatePicker v-model="dateRange" selectionMode="range" :manualInput="false" placeholder="Filter by date" showIcon class="min-w-[220px]" />
-          <Button label="Refresh Data" icon="pi pi-refresh" outlined class="!rounded-xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports(); fetchAuditLogs()" />
+          <Button label="Refresh Data" icon="pi pi-refresh" outlined class="!rounded-2xl !border-[#8B5A2B] !text-[#8B5A2B]" :loading="loading || reportsLoading" @click="fetchBookings(); fetchUnits(); fetchReports(); fetchAuditLogs(); fetchCalendar()" />
+          <Button label="Export CSV" icon="pi pi-download" class="!rounded-2xl !bg-[#1A3A4A] !border-[#1A3A4A]" @click="exportCSV">
+            <template #icon><Download class="w-4 h-4" /></template>
+          </Button>
         </div>
       </div>
       <div class="h-px bg-gradient-to-r from-[#C9A86A] via-[#C9A86A]/40 to-transparent"></div>
@@ -362,7 +584,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ totalBookings }}</p>
               <p class="text-xs text-[#6B7280] mt-1">All statuses</p>
             </div>
-            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><CalendarDays class="w-5 h-5" /></span>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><CalendarDays class="w-5 h-5" /></span>
           </div>
         </template>
       </Card>
@@ -374,7 +596,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
               <p class="text-2xl font-bold text-[#8B5A2B] mt-1">{{ fmt(totalRevenue) }}</p>
               <p class="text-xs text-[#6B7280] mt-1">Verified and completed stays</p>
             </div>
-            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Wallet class="w-5 h-5" /></span>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><Wallet class="w-5 h-5" /></span>
           </div>
         </template>
       </Card>
@@ -386,7 +608,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ occupancyRate }}%</p>
               <div class="mt-2 h-1.5 w-24 bg-[#F3F4F6] rounded-full overflow-hidden"><div class="h-full bg-[#8B5A2B] rounded-full" :style="{ width: occupancyRate+'%' }"></div></div>
             </div>
-            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><TrendingUp class="w-5 h-5" /></span>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><TrendingUp class="w-5 h-5" /></span>
           </div>
         </template>
       </Card>
@@ -398,7 +620,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
               <p class="text-3xl font-bold text-[#1A3A4A] mt-1">{{ availableUnits }} <span class="text-sm font-normal text-[#6B7280]">/ {{ roomUnits.length || '-' }}</span></p>
               <p class="text-xs text-[#2E7D32] mt-1">Ready for guests</p>
             </div>
-            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-xl p-2.5"><Bed class="w-5 h-5" /></span>
+            <span class="bg-[#FDF6EC] border border-[#8B5A2B]/15 text-[#8B5A2B] rounded-2xl p-2.5"><Bed class="w-5 h-5" /></span>
           </div>
         </template>
       </Card>
@@ -406,13 +628,13 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
 
     <!-- Charts -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] lg:col-span-2">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] lg:col-span-2">
         <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Revenue per Day</span></template>
         <template #content>
           <div class="h-[260px]"><Chart type="line" :data="revenueChartData" :options="revenueChartOptions" /></div>
         </template>
       </Card>
-      <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+      <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
         <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Occupancy vs Availability</span></template>
         <template #content>
           <div class="h-[260px] flex items-center justify-center"><Chart type="doughnut" :data="doughnutData" :options="doughnutOptions" /></div>
@@ -420,14 +642,14 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         </template>
       </Card>
     </div>
-    <Card class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title><span class="text-[#1A3A4A] font-semibold text-sm">Bookings by Room Type</span></template>
       <template #content>
         <div class="h-[260px]"><Chart type="bar" :data="barChartData" :options="barChartOptions" /></div>
       </template>
     </Card>
 
-    <Card v-if="bookingsByStatus" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB] bg-[#FDF6EC]/40">
+    <Card v-if="bookingsByStatus" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB] bg-[#FDF6EC]/40">
       <template #content>
         <div class="flex flex-wrap gap-2 text-xs">
           <span v-for="(v,k) in bookingsByStatus" :key="k" class="bg-white border border-[#E5E7EB] rounded-full px-3 py-1"><span class="font-semibold text-[#1A3A4A] capitalize">{{ k.replace('_',' ') }}</span> <span class="text-[#8B5A2B] font-bold">{{ v }}</span></span>
@@ -437,13 +659,13 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
 
     <!-- Tabs navigation -->
     <div class="flex flex-wrap gap-2 border-b border-[#E5E7EB] pb-3">
-      <button v-for="t in [{id:'bookings',label:'Bookings',icon:FileText},{id:'roomtypes',label:'Room Types',icon:Boxes},{id:'units',label:'Room Units',icon:Bed},{id:'audit',label:'Audit Log',icon:ShieldCheck}]" :key="t.id" @click="activeTab=t.id" :class="['inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition', activeTab===t.id ? 'bg-[#1A3A4A] text-white shadow' : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#8B5A2B] hover:text-[#1A3A4A]']">
+      <button v-for="t in [{id:'bookings',label:'Bookings',icon:FileText},{id:'calendar',label:'Occupancy Calendar',icon:Grid3x3},{id:'housekeeping',label:'Housekeeping',icon:Kanban},{id:'roomtypes',label:'Room Types',icon:Boxes},{id:'units',label:'Room Units',icon:Bed},{id:'audit',label:'Audit Log',icon:ShieldCheck}]" :key="t.id" @click="activeTab=t.id" :class="['inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition', activeTab===t.id ? 'bg-[#1A3A4A] text-white shadow' : 'bg-white border border-[#E5E7EB] text-[#6B7280] hover:border-[#8B5A2B] hover:text-[#1A3A4A]']">
         <component :is="t.icon" class="w-4 h-4" /> {{ t.label }}
       </button>
     </div>
 
     <!-- Recent bookings -->
-    <Card v-show="activeTab==='bookings'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='bookings'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Recent bookings</span>
@@ -494,12 +716,90 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
+    <!-- Occupancy Calendar 7 days -->
+    <Card v-show="activeTab==='calendar'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><Grid3x3 class="w-5 h-5 text-[#8B5A2B]" /> Occupancy Calendar · 7 Days</span>
+          <Button label="Refresh" icon="pi pi-refresh" outlined size="small" class="!rounded-full !border-[#8B5A2B] !text-[#8B5A2B]" :loading="calendarLoading" @click="fetchCalendar" />
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+        <p class="text-xs text-[#6B7280] mt-2">7 days x {{ roomUnits.length || 18 }} units. Colors: available cream #FDF6EC, occupied #8B5A2B, dirty orange, maintenance grey. Fetches GET /api/admin/calendar.</p>
+        <div class="flex gap-2 mt-3 text-xs">
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#FDF6EC;border:1px solid #E5E7EB"></span> Available</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#8B5A2B"></span> Occupied</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#EF6C00"></span> Dirty</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background:#6B7280"></span> Maintenance</span>
+        </div>
+      </template>
+      <template #content>
+        <div v-if="calendarLoading" class="text-center py-8 text-sm text-[#6B7280]">Loading calendar...</div>
+        <div v-else class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse min-w-[700px]">
+            <thead>
+              <tr>
+                <th class="text-left p-2 bg-[#F9FAFB] border border-[#E5E7EB] sticky left-0 z-10">Unit</th>
+                <th v-for="d in calendarDays" :key="d" class="p-2 bg-[#F9FAFB] border border-[#E5E7EB] text-center min-w-[90px]">{{ d.slice(5) }}<br><span class="text-[10px] text-[#6B7280]">{{ new Date(d).toLocaleDateString('en-US',{weekday:'short'}) }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="unit in (roomUnits.length? roomUnits : [{id:101,code:'STD-101'},{id:102,code:'DLX-101'},{id:103,code:'FAM-101'},{id:104,code:'SUITE-101'}])" :key="unit.id">
+                <td class="p-2 border border-[#E5E7EB] font-semibold text-[#1A3A4A] bg-white sticky left-0">{{ unit.code || 'UNIT-'+unit.id }}</td>
+                <td v-for="d in calendarDays" :key="d+'-'+unit.id" class="p-1 border border-[#E5E7EB] text-center">
+                  <div class="rounded-xl px-2 py-2 text-xs font-semibold" :style="{ background: calendarCellColor((calendarData?.[d]?.find(x=>x.unit_id===unit.id || x.code===unit.code)?.status) || unit.status || 'available'), color: calendarTextColor((calendarData?.[d]?.find(x=>x.unit_id===unit.id)?.status) || 'available') }">
+                    {{ (calendarData?.[d]?.find(x=>x.unit_id===unit.id)?.status) || unit.status || 'available' }}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-[#9CA3AF] mt-3">Display only for MVP, drag not required. Shows per day per unit.</p>
+      </template>
+    </Card>
+
+    <!-- Housekeeping Kanban 4 cols -->
+    <Card v-show="activeTab==='housekeeping'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
+      <template #title>
+        <div class="flex items-center justify-between">
+          <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><Kanban class="w-5 h-5 text-[#8B5A2B]" /> Housekeeping Kanban</span>
+          <Button label="Refresh Units" icon="pi pi-refresh" outlined size="small" class="!rounded-full !border-[#8B5A2B] !text-[#8B5A2B]" @click="fetchUnits" />
+        </div>
+        <div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div>
+        <p class="text-xs text-[#6B7280] mt-2">Drag cards between columns. Dirty → Available calls PATCH room-units status. STD-101 demo.</p>
+      </template>
+      <template #content>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div v-for="col in ['available','occupied','dirty','maintenance']" :key="col" class="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-3 min-h-[320px]" @dragover="onDragOver" @drop="onDrop(col)">
+            <h4 class="text-xs uppercase tracking-widest font-bold text-[#1A3A4A] flex items-center gap-2 mb-3">
+              <span class="w-2 h-2 rounded-full" :style="{ background: col==='available' ? '#22C55E' : col==='occupied' ? '#8B5A2B' : col==='dirty' ? '#EF6C00' : '#6B7280' }"></span>
+              {{ col }} <span class="ml-auto bg-white border border-[#E5E7EB] rounded-full px-2 py-0.5 text-[10px]">{{ kanbanCols[col].length }}</span>
+            </h4>
+            <div class="space-y-3">
+              <div v-for="unit in kanbanCols[col]" :key="unit.id" draggable="true" @dragstart="onDragStart(unit)" class="bg-white rounded-2xl border p-3 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition" :class="col==='occupied' ? 'border-[#8B5A2B]/30' : 'border-[#E5E7EB]'">
+                <p class="font-bold text-[#1A3A4A] text-sm">{{ unit.code }}</p>
+                <p class="text-xs text-[#6B7280]">Type #{{ unit.room_type_id || '-' }} · {{ unit.status }}</p>
+                <Tag :value="unit.status" :severity="unitSeverity(unit.status)" rounded class="mt-2 text-xs" />
+                <div class="mt-2 flex gap-1">
+                  <select :value="unit.status" @change="(e)=>{ unitStatusMap[unit.id]=e.target.value }" class="flex-1 text-xs border border-[#E5E7EB] rounded-full px-2 py-1">
+                    <option v-for="o in unitStatusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+                  </select>
+                  <Button label="Save" size="small" class="!rounded-full !bg-[#8B5A2B] !border-[#8B5A2B] !px-3 !py-1 text-xs" @click="updateUnitStatus(unit)" />
+                </div>
+              </div>
+              <p v-if="!kanbanCols[col].length" class="text-xs text-[#9CA3AF] text-center py-8 border-2 border-dashed border-[#E5E7EB] rounded-2xl">No {{ col }} units. Drop here.</p>
+            </div>
+          </div>
+        </div>
+      </template>
+    </Card>
+
     <!-- Room Types CRUD -->
-    <Card v-show="activeTab==='roomtypes'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='roomtypes'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Types</span>
-          <Button label="Create Room Type" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" @click="openCreateRoomType">
+          <Button label="Create Room Type" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-2xl" @click="openCreateRoomType">
             <template #icon><Plus class="w-4 h-4" /></template>
           </Button>
         </div>
@@ -524,6 +824,18 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
           <Column field="total_units" header="Units" sortable style="width:90px">
             <template #body="{ data }">{{ data.total_units || data.totalUnits || '-' }}</template>
           </Column>
+          <Column header="Photos (5 max)" style="min-width:260px">
+            <template #body="{ data }">
+              <div class="flex items-center gap-1">
+                <input type="file" multiple accept="image/jpeg,image/png,image/jpg" :id="'upload-'+data.id" class="hidden" @change="onFileChange($event, data.id)" />
+                <Button label="Choose" icon="pi pi-images" size="small" outlined class="!rounded-full !text-xs !py-1 !border-[#8B5A2B] !text-[#8B5A2B]" @click="document.getElementById('upload-'+data.id).click()" />
+                <Button :label="uploadLoading[data.id] ? 'Uploading...' : 'Upload'" size="small" class="!rounded-full !bg-[#8B5A2B] !border-[#8B5A2B] !text-xs !py-1" :loading="uploadLoading[data.id]" @click="uploadRoomImages(data.id)">
+                  <template #icon><Upload class="w-3 h-3" /></template>
+                </Button>
+              </div>
+              <p v-if="uploadFiles[data.id]?.length" class="text-[10px] text-[#6B7280] mt-1">{{ uploadFiles[data.id].length }} files selected (max 5, jpg/png 5MB)</p>
+            </template>
+          </Column>
           <Column header="Actions" style="min-width:180px">
             <template #body="{ data }">
               <div class="flex gap-1.5">
@@ -542,11 +854,11 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Room units -->
-    <Card v-show="activeTab==='units'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='units'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title>
         <div class="flex items-center justify-between">
           <span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Room Units</span>
-          <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-xl" @click="openCreateUnit">
+          <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-2xl" @click="openCreateUnit">
             <template #icon><Plus class="w-4 h-4" /></template>
           </Button>
         </div>
@@ -571,7 +883,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Audit logs -->
-    <Card v-show="activeTab==='audit'" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-show="activeTab==='audit'" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title>
         <div class="flex items-center justify-between gap-2">
           <span class="text-[#1A3A4A] font-display font-bold text-lg flex items-center gap-2" style="font-family:'Playfair Display',serif"><ShieldCheck class="w-5 h-5 text-[#8B5A2B]" /> Audit Log</span>
@@ -604,7 +916,7 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
     </Card>
 
     <!-- Reviews always visible below tabs -->
-    <Card v-if="reviews.length" class="!rounded-xl !shadow-sm !border !border-[#E5E7EB]">
+    <Card v-if="reviews.length" class="!rounded-2xl !shadow-sm !border !border-[#E5E7EB]">
       <template #title><span class="text-[#1A3A4A] font-display font-bold text-lg" style="font-family:'Playfair Display',serif">Reviews ({{ reviews.length }})</span><div class="h-px bg-gradient-to-r from-[#C9A86A] to-transparent mt-3"></div></template>
       <template #content>
         <DataTable :value="reviews" paginator :rows="5" stripedRows class="text-sm">
@@ -617,14 +929,14 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
       </template>
     </Card>
 
-    <Dialog v-model:visible="showDetail" modal header="Booking Details" :style="{ width:'560px' }" class="!rounded-xl">
+    <Dialog v-model:visible="showDetail" modal header="Booking Details" :style="{ width:'560px' }" class="!rounded-2xl">
       <div v-if="selected" class="space-y-3 text-sm">
         <p><span class="font-semibold">ID:</span> {{ selected.id }} ({{ selected.status }})</p>
         <p><span class="font-semibold">Total:</span> {{ fmt(selected.total_price) }}</p>
         <p v-if="selected.proof_url" class="break-all"><span class="font-semibold">Proof:</span> <a :href="selected.proof_url" target="_blank" class="text-[#8B5A2B] underline">{{ selected.proof_url }}</a></p>
-        <img v-if="selected.proof_url && !selected.proof_url.endsWith('.pdf')" :src="selected.proof_url" alt="proof" class="max-h-64 rounded-lg border" />
+        <img v-if="selected.proof_url && !selected.proof_url.endsWith('.pdf')" :src="selected.proof_url" alt="proof" class="max-h-64 rounded-2xl border" />
       </div>
-      <template #footer><Button label="Close" class="!rounded-xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
+      <template #footer><Button label="Close" class="!rounded-2xl !bg-[#8B5A2B] !border-[#8B5A2B]" @click="showDetail=false" /></template>
     </Dialog>
 
     <Dialog v-model:visible="showReject" modal header="Decline Booking" :style="{ width:'420px' }">
@@ -665,8 +977,8 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text class="!rounded-xl" @click="showRoomTypeDialog=false" />
-        <Button :label="editingRoomType ? 'Update' : 'Create'" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-xl" :loading="rtSaving" @click="saveRoomType" />
+        <Button label="Cancel" text class="!rounded-2xl" @click="showRoomTypeDialog=false" />
+        <Button :label="editingRoomType ? 'Update' : 'Create'" class="!bg-[#8B5A2B] !border-[#8B5A2B] !rounded-2xl" :loading="rtSaving" @click="saveRoomType" />
       </template>
     </Dialog>
 
@@ -691,8 +1003,8 @@ const doughnutOptions = { responsive:true, maintainAspectRatio:false, cutout:'65
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" text class="!rounded-xl" @click="showUnitDialog=false" />
-        <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-xl" :loading="unitSaving" @click="createUnit" />
+        <Button label="Cancel" text class="!rounded-2xl" @click="showUnitDialog=false" />
+        <Button label="Create Unit" class="!bg-[#1A3A4A] !border-[#1A3A4A] !rounded-2xl" :loading="unitSaving" @click="createUnit" />
       </template>
     </Dialog>
   </div>

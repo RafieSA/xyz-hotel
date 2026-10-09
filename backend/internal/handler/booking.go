@@ -13,6 +13,7 @@ import (
 	"xyz-hotel/backend/internal/model"
 	"xyz-hotel/backend/internal/repo"
 	"xyz-hotel/backend/internal/service"
+	"xyz-hotel/backend/internal/ws"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -92,11 +93,12 @@ func (h *BookingHandler) GetAvailability(c *fiber.Ctx) error {
 }
 // CreateBookingRequest validation struct.
 type CreateBookingRequest struct {
-	RoomTypeID  int64  `json:"room_type_id" validate:"required"`
-	CheckIn     string `json:"check_in" validate:"required"`
-	CheckOut    string `json:"check_out" validate:"required"`
-	Guests      int    `json:"guests" validate:"required,gte=1"`
-	VoucherCode string `json:"voucher_code" validate:"omitempty"`
+	RoomTypeID    int64  `json:"room_type_id" validate:"required"`
+	CheckIn       string `json:"check_in" validate:"required"`
+	CheckOut      string `json:"check_out" validate:"required"`
+	Guests        int    `json:"guests" validate:"required,gte=1"`
+	VoucherCode   string `json:"voucher_code" validate:"omitempty"`
+	LoyaltyPoints int    `json:"loyalty_points" validate:"gte=0"`
 }
 
 // CreateBooking handles POST /api/bookings (auth required).
@@ -127,7 +129,13 @@ func (h *BookingHandler) CreateBooking(c *fiber.Ctx) error {
 	if err := h.Validator.Struct(req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": "Please check your booking details and try again", "details": err.Error()})
 	}
-	booking, err := h.Availability.CreateBooking(c.Context(), userID, req.RoomTypeID, req.CheckIn, req.CheckOut, req.Guests, req.VoucherCode)
+	var booking *model.Booking
+	var err error
+	if req.LoyaltyPoints > 0 {
+		booking, err = h.Availability.CreateBookingWithLoyalty(c.Context(), userID, req.RoomTypeID, req.CheckIn, req.CheckOut, req.Guests, req.VoucherCode, req.LoyaltyPoints)
+	} else {
+		booking, err = h.Availability.CreateBooking(c.Context(), userID, req.RoomTypeID, req.CheckIn, req.CheckOut, req.Guests, req.VoucherCode)
+	}
 	if err != nil {
 		msg := err.Error()
 		if contains(msg, "Room type not found") || contains(msg, "room type not found") || contains(msg, "Voucher code not found") || contains(msg, "voucher not found") {
@@ -149,12 +157,19 @@ func (h *BookingHandler) CreateBooking(c *fiber.Ctx) error {
 		if contains(msg, "needs at least") || contains(msg, "voucher requires minimum") || contains(msg, "minimum") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
+		if contains(msg, "Requires 100 points") || contains(msg, "points must be") || contains(msg, "loyalty_points cannot be") {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
+		}
 		if contains(msg, "voucher") || contains(msg, "Voucher") {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": msg})
 		}
 		slog.Error("create booking failed", "err", err, "user_id", userID)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not create your booking. Please try again"})
 	}
+	go func(id int64) {
+		data, _ := json.Marshal(map[string]interface{}{"type": "booking_created", "id": id})
+		ws.GetHub().Broadcast(data)
+	}(booking.ID)
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"data": booking})
 }
 func contains(s, sub string) bool {
@@ -470,6 +485,10 @@ func (h *BookingHandler) VerifyBooking(c *fiber.Ctx) error {
 			service.SendAsync(to, subject, body)
 		}
 	}()
+	go func(id int64, action string) {
+		data, _ := json.Marshal(map[string]interface{}{"type": "booking_verified", "id": id, "action": action})
+		ws.GetHub().Broadcast(data)
+	}(bookingID, req.Action)
 	if req.Action == "verified" {
 		return c.JSON(fiber.Map{"message": "Booking verified successfully", "data": updated})
 	}
@@ -540,6 +559,10 @@ func (h *BookingHandler) CheckIn(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not check in the guest. Please try again"})
 		}
 	}
+	go func(id int64) {
+		data, _ := json.Marshal(map[string]interface{}{"type": "booking_checked_in", "id": id})
+		ws.GetHub().Broadcast(data)
+	}(bookingID)
 	return c.JSON(fiber.Map{"message": "Guest checked in successfully", "data": updated})
 }
 

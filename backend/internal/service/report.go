@@ -1,8 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
+	"strconv"
 	"time"
 
 	"xyz-hotel/backend/internal/repo"
@@ -181,4 +184,169 @@ func (s *ReportService) GetSummary(ctx context.Context, fromStr, toStr string) (
 	}
 	sum, err := s.GetBookingsStats(ctx, from, to)
 	return sum, from, to, err
+}
+
+// Calendar helpers for admin calendar 7 days x 18 units matrix
+
+// parseCalendarRange parses from/to for calendar; defaults to next 7 days (today .. today+6)
+func parseCalendarRange(fromStr, toStr string) (time.Time, time.Time, error) {
+	now := time.Now()
+	defaultFrom := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	defaultTo := defaultFrom.AddDate(0, 0, 6)
+	var from, to time.Time
+	var err error
+	if fromStr == "" {
+		from = defaultFrom
+	} else {
+		from, err = time.Parse("2006-01-02", fromStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("Start date is invalid. Use YYYY-MM-DD format")
+		}
+	}
+	if toStr == "" {
+		to = defaultTo
+		// if from was provided but to empty, keep 7 days from from
+		if fromStr != "" {
+			to = from.AddDate(0, 0, 6)
+		}
+	} else {
+		to, err = time.Parse("2006-01-02", toStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, fmt.Errorf("End date is invalid. Use YYYY-MM-DD format")
+		}
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{}, fmt.Errorf("from must be before or equal to to")
+	}
+	return from, to, nil
+}
+
+// ParseCalendarRange exported for handler.
+func ParseCalendarRange(fromStr, toStr string) (time.Time, time.Time, error) {
+	return parseCalendarRange(fromStr, toStr)
+}
+
+// CalendarUnit represents a physical unit for calendar matrix.
+type CalendarUnit struct {
+	ID         int64  `db:"id" json:"id"`
+	Code       string `db:"code" json:"code"`
+	RoomTypeID int64  `db:"room_type_id" json:"room_type_id"`
+	Status     string `db:"status" json:"status"`
+}
+
+// CalendarBooking is a booking event for FullCalendar.
+type CalendarBooking struct {
+	ID         int64  `db:"id" json:"id"`
+	RoomTypeID int64  `db:"room_type_id" json:"room_type_id"`
+	RoomUnitID *int64 `db:"room_unit_id" json:"room_unit_id,omitempty"`
+	CheckIn    string `db:"check_in" json:"check_in"`
+	CheckOut   string `db:"check_out" json:"check_out"`
+	Status     string `db:"status" json:"status"`
+	Guests     int    `db:"guests" json:"guests"`
+}
+
+// CalendarResult holds 7 days x 18 units matrix data.
+type CalendarResult struct {
+	From      string              `json:"from"`
+	To        string              `json:"to"`
+	Days      []string            `json:"days"`
+	Units     []CalendarUnit      `json:"units"`
+	Bookings  []CalendarBooking   `json:"bookings"`
+	Occupancy []repo.DailyOccupancy `json:"occupancy_per_day"`
+	Matrix    map[string]map[string]int `json:"matrix"`
+}
+
+// GetCalendar returns 7 days x 18 units matrix with bookings per day per unit (occupied count), FOR UPDATE safe.
+func (s *ReportService) GetCalendar(ctx context.Context, fromStr, toStr string) (*CalendarResult, error) {
+	from, to, err := parseCalendarRange(fromStr, toStr)
+	if err != nil {
+		return nil, err
+	}
+	return s.getCalendarNoTx(ctx, from, to)
+}
+
+func (s *ReportService) getCalendarNoTx(ctx context.Context, from, to time.Time) (*CalendarResult, error) {
+	var units []CalendarUnit
+	err := s.DB.SelectContext(ctx, &units, `SELECT id, code, room_type_id, status FROM room_units WHERE deleted_at IS NULL ORDER BY code`)
+	if err != nil {
+		return nil, err
+	}
+	if units == nil {
+		units = []CalendarUnit{}
+	}
+	var bookings []CalendarBooking
+	err = s.DB.SelectContext(ctx, &bookings, `SELECT id, room_type_id, room_unit_id, check_in::text as check_in, check_out::text as check_out, status, guests FROM bookings WHERE check_in < $2::date AND check_out > $1::date ORDER BY check_in`, from.Format("2006-01-02"), to.AddDate(0, 0, 1).Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	if bookings == nil {
+		bookings = []CalendarBooking{}
+	}
+	var days []string
+	matrix := make(map[string]map[string]int)
+	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+		ds := d.Format("2006-01-02")
+		days = append(days, ds)
+		matrix[ds] = make(map[string]int)
+		for _, u := range units {
+			matrix[ds][u.Code] = 0
+		}
+	}
+	occupancy, _ := s.ReportRepo.OccupancyPerDay(ctx, from, to)
+	if occupancy == nil {
+		occupancy = []repo.DailyOccupancy{}
+	}
+	return &CalendarResult{
+		From:      from.Format("2006-01-02"),
+		To:        to.Format("2006-01-02"),
+		Days:      days,
+		Units:     units,
+		Bookings:  bookings,
+		Occupancy: occupancy,
+		Matrix:    matrix,
+	}, nil
+}
+
+// ReportCSV generates CSV bytes with header date,revenue,bookings,occupancy for given range.
+func (s *ReportService) ReportCSV(ctx context.Context, from, to time.Time) ([]byte, error) {
+	revPerDay, err := s.ReportRepo.RevenuePerDay(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+	occPerDay, err := s.ReportRepo.OccupancyPerDay(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+	occMap := make(map[string]int64)
+	for _, o := range occPerDay {
+		occMap[o.Date] = o.Occupied
+	}
+	revMap := make(map[string]repo.DailyRevenue)
+	for _, r := range revPerDay {
+		revMap[r.Date] = r
+	}
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	if err := w.Write([]string{"date", "revenue", "bookings", "occupancy"}); err != nil {
+		return nil, err
+	}
+	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+		ds := d.Format("2006-01-02")
+		rev := int64(0)
+		bookings := int64(0)
+		if r, ok := revMap[ds]; ok {
+			rev = r.Revenue
+			bookings = r.Bookings
+		}
+		occ := occMap[ds]
+		if err := w.Write([]string{ds, strconv.FormatInt(rev, 10), strconv.FormatInt(bookings, 10), strconv.FormatInt(occ, 10)}); err != nil {
+			return nil, err
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, err
+	}
+	_ = fmt.Sprintf
+	return buf.Bytes(), nil
 }

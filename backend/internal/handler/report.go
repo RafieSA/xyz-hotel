@@ -1,13 +1,13 @@
 package handler
 
 import (
+	"log/slog"
 	"strings"
 
 	"xyz-hotel/backend/internal/service"
 
 	"github.com/gofiber/fiber/v2"
 )
-
 // ReportHandler serves admin reporting endpoints.
 type ReportHandler struct {
 	Reports *service.ReportService
@@ -101,7 +101,6 @@ func (h *ReportHandler) GetOccupancy(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not calculate occupancy. Please try again"})
 	}
 	perDay, _ := h.Reports.ReportRepo.OccupancyPerDay(c.Context(), from, to)
-	// enrich rate per day
 	totalUnits, _ := h.Reports.ReportRepo.TotalUnits(c.Context())
 	for i := range perDay {
 		if totalUnits > 0 {
@@ -114,4 +113,31 @@ func (h *ReportHandler) GetOccupancy(c *fiber.Ctx) error {
 		"occupancy_rate":    rate,
 		"occupancy_per_day": perDay,
 	})
+}
+
+// GetCalendar handles GET /api/admin/calendar?from&to (RBAC owner/manager/receptionist) returns 7 days x 18 units matrix
+func (h *ReportHandler) GetCalendar(c *fiber.Ctx) error {
+	fromStr, toStr := parseRange(c)
+	result, err := h.Reports.GetCalendar(c.Context(), fromStr, toStr)
+	if err != nil {
+		slog.Error("calendar failed", "from", fromStr, "to", toStr, "err", err)
+		return reportError(c, err)
+	}
+	return c.JSON(result)
+}
+
+// ExportCSV handles GET /api/admin/reports/export.csv?from&to (RBAC) returns CSV with header date,revenue,bookings,occupancy
+func (h *ReportHandler) ExportCSV(c *fiber.Ctx) error {
+	fromStr, toStr := parseRange(c)
+	from, to, err := service.ParseReportRange(fromStr, toStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"message": err.Error()})
+	}
+	data, err := h.Reports.ReportCSV(c.Context(), from, to)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"message": "We could not generate CSV. Please try again"})
+	}
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", "attachment; filename=report.csv")
+	return c.Send(data)
 }

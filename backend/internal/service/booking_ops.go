@@ -159,7 +159,41 @@ func (s *BookingOpsService) CheckOut(ctx context.Context, bookingID int64, actor
 		return nil, err
 	}
 	slog.Info("check-out success", "booking_id", bookingID, "unit_id", unitID, "actor", actorID)
+	// Earn loyalty points: 10 per night, best effort after checkout
+	func() {
+		defer func() { _ = recover() }()
+		nights := int(updated.CheckOut.Sub(updated.CheckIn).Hours() / 24)
+		if nights < 1 {
+			nights = 1
+		}
+		points := nights * 10
+		// Use dedicated service with its own transaction and idempotency check
+		ls := NewLoyaltyService(s.DB)
+		if _, err := ls.EarnPoints(updated.UserID, updated.ID); err != nil {
+			if containsLoyalty(err.Error(), "already earned") {
+				slog.Info("loyalty already earned", "booking_id", bookingID)
+			} else if containsLoyalty(err.Error(), "only earned after checked out") {
+				// should not happen
+			} else {
+				slog.Warn("loyalty earn failed after checkout", "booking_id", bookingID, "err", err, "points", points)
+			}
+		} else {
+			slog.Info("loyalty points earned", "booking_id", bookingID, "user_id", updated.UserID, "points", points)
+		}
+	}()
 	return &updated, nil
+}
+
+func containsLoyalty(s, sub string) bool {
+	if len(s) < len(sub) {
+		return false
+	}
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
 
 // IsValidRoomStatusTransition checks allowed transitions for housekeeping.

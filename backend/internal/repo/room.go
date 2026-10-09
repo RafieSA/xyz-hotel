@@ -63,6 +63,21 @@ func (r *RoomRepo) ListRoomTypesWithRating() ([]model.RoomTypeWithRating, error)
 	return out, nil
 }
 
+// SearchRoomTypesWithRating filters by ILIKE name/description where deleted_at IS NULL, public, no auth.
+func (r *RoomRepo) SearchRoomTypesWithRating(q string) ([]model.RoomTypeWithRating, error) {
+	q = "%" + q + "%"
+	var out []model.RoomTypeWithRating
+	err := r.DB.Select(&out, `SELECT id, name, description, capacity, price, total_units, avg_rating, review_count, created_at, updated_at FROM room_types WHERE deleted_at IS NULL AND (name ILIKE $1 OR description ILIKE $1) ORDER BY price ASC`, q)
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []model.RoomTypeWithRating{}
+	}
+	return out, nil
+}
+
+
 // CountUnits returns total_units for a room type (convenience).
 func (r *RoomRepo) CountUnits(roomTypeID int64) (int, error) {
 	var total int
