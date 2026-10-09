@@ -651,31 +651,40 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
       </div>
     </section>
 
-    <!-- Search ILIKE -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 pt-10 overflow-hidden">
-      <div class="t-panel-reveal bg-white dark:bg-[#2D3748] dark:border-[#4A5568] rounded-2xl shadow-sm border border-[#E5E7EB] p-4 flex flex-col sm:flex-row gap-3 items-center" data-open="true">
-        <div class="relative flex-1 w-full">
-          <span class="t-tt-wrap flex-1 w-full relative flex items-center"><Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF] z-10" />
-          <input :value="searchQuery" @input="onSearchInput($event.target.value)" placeholder="Search rooms: Standard, Deluxe, breakfast, balcony..." class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E5E7EB] text-sm focus:outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] placeholder:text-[#9CA3AF]" /></span>
-        </div>
-        <span v-if="searching" class="text-xs text-[#6B7280]">Searching...</span>
-        <span v-else-if="searchQuery" class="text-xs text-[#6B7280]">{{ displayedRooms.length }} results for "{{ searchQuery }}"</span>
-        <Button v-if="searchQuery" label="Clear" text size="small" class="!rounded-full" @click="onSearchInput('')" />
-      </div>
-    </section>
-
     <!-- Rooms -->
-    <section id="rooms" class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16">
-      <div class="flex items-end justify-between gap-4">
+    <section id="rooms" class="max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-16 scroll-mt-20">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 class="font-display font-bold text-3xl text-[#1A3A4A] dark:text-[#FDF6EC]" style="font-family:'Playfair Display',serif; font-size:28px">{{ t('filter.title') }}</h2>
           <div class="h-px w-16 bg-[#C9A86A] mt-2"></div>
           <p class="text-[#6B7280] dark:text-[#FDF6EC]/70 text-base mt-2">{{ t('filter.subtitle') }}</p>
         </div>
-        <span class="hidden md:inline-flex items-center gap-1.5 text-xs bg-[#FDF6EC] text-[#8B5A2B] border border-[#8B5A2B]/20 rounded-full px-3 py-1.5 font-semibold"><Wifi class="w-3.5 h-3.5" /> Free Wi-Fi · Breakfast</span>
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5 text-xs bg-[#FDF6EC] dark:bg-[#2D3748] text-[#8B5A2B] border border-[#8B5A2B]/20 rounded-full px-3 py-1.5 font-semibold">
+            <Wifi class="w-3.5 h-3.5" /> Free Wi-Fi · Breakfast
+          </span>
+        </div>
       </div>
 
-      <div v-if="canSearch && loadingAvail" class="mt-6 text-center text-sm text-[#6B7280]">Checking availability...</div>
+      <!-- Integrated Keyword Filter Bar -->
+      <div class="mt-6 bg-white dark:bg-[#2D3748] dark:border-[#4A5568] rounded-2xl shadow-sm border border-[#E5E7EB] p-3 sm:p-4 flex flex-col sm:flex-row gap-3 items-center">
+        <div class="relative flex-1 w-full">
+          <Search class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9CA3AF]" />
+          <input
+            :value="searchQuery"
+            @input="onSearchInput($event.target.value)"
+            placeholder="Cari spesifikasi: Standard, Deluxe, balkon, pemandangan kebun, sarapan..."
+            class="w-full pl-10 pr-4 py-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-0 placeholder:text-[#9CA3AF] text-[#1A3A4A] dark:text-white"
+          />
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span v-if="searching" class="text-xs text-[#6B7280]">Mencari...</span>
+          <span v-else-if="searchQuery" class="text-xs text-[#8B5A2B] font-semibold">{{ displayedRooms.length }} tipe ditemukan</span>
+          <Button v-if="searchQuery" label="Reset" text size="small" class="!rounded-full !text-xs !py-1" @click="onSearchInput('')" />
+        </div>
+      </div>
+
+      <div v-if="canSearch && loadingAvail" class="mt-6 text-center text-sm text-[#6B7280]">Memeriksa ketersediaan kamar...</div>
       <div v-if="displayedRooms.length===0" class="mt-8 text-center py-12 bg-white rounded-2xl border border-dashed border-[#E5E7EB]">
         <p class="text-sm text-[#6B7280] dark:text-[#FDF6EC]">{{ t('search.noMatch', { query: searchQuery }) }}</p>
       </div>
@@ -720,87 +729,91 @@ onBeforeUnmount(()=>{ window.removeEventListener('keydown', onKey); if(ourSpaces
     />
 
     <!-- Map & Nearby -->
-    <section class="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+    <section id="location" class="max-w-7xl mx-auto px-4 sm:px-6 py-12 scroll-mt-20">
       <div class="text-center">
         <h2 class="font-bold text-[#1A3A4A] dark:text-[#FDF6EC]" style="font-family:'Playfair Display',serif; font-size:28px">{{ t('map.title') }}</h2>
         <div class="h-px w-16 bg-[#C9A86A] mx-auto mt-3"></div>
         <p class="text-[#6B7280] dark:text-[#C9A86A]/80 text-base mt-3">{{ t('map.desc') }}</p>
       </div>
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-[#E5E7EB] overflow-hidden">
-          <div v-if="!mapFailed" ref="mapRef" id="map" class="w-full h-[400px] bg-[#FDF6EC] dark:bg-[#2D3748] rounded-2xl"></div>
+        <div class="lg:col-span-2 bg-white dark:bg-[#2D3748] rounded-2xl shadow-sm border border-[#E5E7EB] dark:border-[#4A5568] overflow-hidden relative z-0 isolate">
+          <div v-if="!mapFailed" ref="mapRef" id="map" class="w-full h-[400px] bg-[#FDF6EC] dark:bg-[#2D3748] rounded-2xl relative z-0"></div>
           <div v-else class="w-full h-[400px] bg-[#FDF6EC] dark:bg-[#2D3748] flex flex-col items-center justify-center p-6 text-center">
             <img src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80&auto=format&fit=crop" alt="Map fallback Ubud" class="w-full h-48 object-cover rounded-2xl" />
-            <p class="mt-4 font-semibold text-[#1A3A4A]">Jl. Hangat No. 8B, Ubud, Bali</p>
-            <p class="text-sm text-[#6B7280]">-8.519, 115.263 · Open in Google Maps</p>
-            <a href="https://www.openstreetmap.org/?mlat=-8.519&mlon=115.263#map=15/-8.519/115.263" target="_blank" class="mt-3 inline-flex items-center gap-1.5 bg-[#8B5A2B] text-white rounded-full px-4 py-2 text-sm font-semibold"><MapPin class="w-4 h-4" /> Open map</a>
-            <a href="https://wa.me/6281234567890" class="mt-2 text-sm text-[#8B5A2B] underline">WhatsApp 0812-3456-7890</a>
+            <p class="mt-4 font-semibold text-[#1A3A4A] dark:text-white">Jl. Suweta No. 8B, Ubud, Gianyar, Bali</p>
+            <p class="text-sm text-[#6B7280] dark:text-gray-400">-8.519, 115.263 · Buka di OpenStreetMap</p>
+            <a href="https://www.openstreetmap.org/?mlat=-8.519&mlon=115.263#map=15/-8.519/115.263" target="_blank" class="mt-3 inline-flex items-center gap-1.5 bg-[#8B5A2B] text-white rounded-full px-4 py-2 text-sm font-semibold"><MapPin class="w-4 h-4" /> Buka peta</a>
+            <a href="https://wa.me/6281234567890" class="mt-2 text-sm text-[#8B5A2B] underline">WhatsApp: +62 812-3456-7890</a>
           </div>
-          <div class="p-4 flex items-center gap-2 text-xs text-[#6B7280] border-t border-[#E5E7EB]">
-            <MapPin class="w-4 h-4 text-[#8B5A2B]" /> Ubud center · tiles OpenStreetMap · custom pin #8B5A2B
+          <div class="p-4 flex items-center gap-2 text-xs text-[#6B7280] dark:text-gray-400 border-t border-[#E5E7EB] dark:border-[#4A5568]">
+            <MapPin class="w-4 h-4 text-[#8B5A2B]" /> Pusat Wisata Ubud · Dekat Puri Saren Agung, Pasar Seni, & Monkey Forest
           </div>
         </div>
         <div class="space-y-4">
           <div class="bg-[#FDF6EC] dark:bg-[#2D3748] rounded-2xl border border-[#E5E7EB] dark:border-[#4A5568] p-5">
-            <h3 class="font-semibold text-[#1A3A4A] flex items-center gap-2"><MapPin class="w-4 h-4 text-[#8B5A2B]" /> Nearby</h3>
+            <h3 class="font-semibold text-[#1A3A4A] dark:text-white flex items-center gap-2"><MapPin class="w-4 h-4 text-[#8B5A2B]" /> Destinasi Sekitar</h3>
             <div class="mt-4 space-y-3">
-              <div class="bg-white rounded-2xl p-4 border border-[#E5E7EB] flex items-center justify-between">
+              <div class="bg-white dark:bg-[#1A3A4A] rounded-2xl p-4 border border-[#E5E7EB] dark:border-[#4A5568] flex items-center justify-between">
                 <div>
-                  <p class="font-semibold text-[#1A3A4A] text-sm">Beach</p>
-                  <p class="text-xs text-[#6B7280]">Sunset stroll</p>
+                  <p class="font-semibold text-[#1A3A4A] dark:text-white text-sm">Hutan Monyet (Monkey Forest)</p>
+                  <p class="text-xs text-[#6B7280] dark:text-gray-400">Jalan santai di cagar alam</p>
                 </div>
                 <span class="bg-[#8B5A2B] text-white text-xs font-bold rounded-full px-3 py-1">0.5km</span>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-[#E5E7EB] flex items-center justify-between">
+              <div class="bg-white dark:bg-[#1A3A4A] rounded-2xl p-4 border border-[#E5E7EB] dark:border-[#4A5568] flex items-center justify-between">
                 <div>
-                  <p class="font-semibold text-[#1A3A4A] text-sm">Cafe</p>
-                  <p class="text-xs text-[#6B7280]">Specialty coffee</p>
+                  <p class="font-semibold text-[#1A3A4A] dark:text-white text-sm">Puri Saren Agung & Pasar Seni</p>
+                  <p class="text-xs text-[#6B7280] dark:text-gray-400">Pusat seni & pertunjukan tari</p>
                 </div>
                 <span class="bg-[#8B5A2B] text-white text-xs font-bold rounded-full px-3 py-1">0.2km</span>
               </div>
-              <div class="bg-white rounded-2xl p-4 border border-[#E5E7EB] flex items-center justify-between">
+              <div class="bg-white dark:bg-[#1A3A4A] rounded-2xl p-4 border border-[#E5E7EB] dark:border-[#4A5568] flex items-center justify-between">
                 <div>
-                  <p class="font-semibold text-[#1A3A4A] text-sm">Spa</p>
-                  <p class="text-xs text-[#6B7280]">Warm stone therapy</p>
+                  <p class="font-semibold text-[#1A3A4A] dark:text-white text-sm">Ubud Traditional Spa & Wellness</p>
+                  <p class="text-xs text-[#6B7280] dark:text-gray-400">Pijat herbal & terapi relaksasi</p>
                 </div>
                 <span class="bg-[#8B5A2B] text-white text-xs font-bold rounded-full px-3 py-1">0.3km</span>
               </div>
             </div>
-            <p class="text-xs text-[#6B7280] mt-4">All distances walking. Cream cards #FDF6EC, gold hierarchy.</p>
+            <p class="text-xs text-[#6B7280] dark:text-gray-400 mt-4">Seluruh destinasi wisata favorit di atas dapat ditempuh dengan berjalan kaki santai dari resort.</p>
           </div>
-          <div class="bg-[#1A3A4A] rounded-2xl p-5 text-white">
-            <p class="font-semibold">Getting here</p>
-            <p class="text-sm text-white/70 mt-1">From Ngurah Rai Airport 45 min. Airport transfer 150k available at checkout.</p>
+          <div class="bg-[#1A3A4A] dark:bg-[#0F2A36] rounded-2xl p-5 text-white">
+            <p class="font-semibold">Menuju ke Resort</p>
+            <p class="text-sm text-white/70 mt-1">45 menit berkendara dari Bandara Internasional Ngurah Rai (DPS). Layanan jemputan privat tersedia saat pemesanan.</p>
           </div>
         </div>
       </div>
     </section>
 
     <!-- Add-ons & Loyalty Rewards Section -->
-    <AddonsLoyaltySection
-      :addons="addons"
-      :selected-addons="selectedAddons"
-      :is-authenticated="auth.isAuthenticated"
-      :loyalty-points="loyaltyPoints"
-      :use-loyalty="useLoyalty"
-      :loyalty-can-redeem="loyaltyCanRedeem"
-      :addons-total="addonsTotal"
-      @toggle-addon="toggleAddon"
-      @update:use-loyalty="useLoyalty = $event"
-    />
+    <div id="amenities" class="scroll-mt-20">
+      <AddonsLoyaltySection
+        :addons="addons"
+        :selected-addons="selectedAddons"
+        :is-authenticated="auth.isAuthenticated"
+        :loyalty-points="loyaltyPoints"
+        :use-loyalty="useLoyalty"
+        :loyalty-can-redeem="loyaltyCanRedeem"
+        :addons-total="addonsTotal"
+        @toggle-addon="toggleAddon"
+        @update:use-loyalty="useLoyalty = $event"
+      />
+    </div>
 
     <!-- Guest Reviews Section -->
-    <GuestReviewsSection
-      :rooms="rooms"
-      :reviews-by-type="reviewsByType"
-      :avg-rating="avgRating"
-      :rating-count="ratingCount"
-      :is-authenticated="auth.isAuthenticated"
-      :eligible-bookings="eligibleBookings"
-      :review-form="reviewForm"
-      :submitting-review="submittingReview"
-      @submit-review="submitReview"
-    />
+    <div id="reviews" class="scroll-mt-20">
+      <GuestReviewsSection
+        :rooms="rooms"
+        :reviews-by-type="reviewsByType"
+        :avg-rating="avgRating"
+        :rating-count="ratingCount"
+        :is-authenticated="auth.isAuthenticated"
+        :eligible-bookings="eligibleBookings"
+        :review-form="reviewForm"
+        :submitting-review="submittingReview"
+        @submit-review="submitReview"
+      />
+    </div>
 
     <section class="bg-[#FDF6EC] border-y border-[#E5E7EB]/60">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row gap-6 justify-between text-sm">

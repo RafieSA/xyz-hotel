@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Format: `YYYY-MM-DD — what changed — why`.
 
+## 2026-10-09 — UI/UX Redesign & Navigation Polish
+
+- 2026-10-09 — Refactor HomeView and AdminView into 9 modular SRP components (RoomCard, HeroSearch, ResortGallery, AddonsLoyaltySection, GuestReviewsSection, AdminStatsOverview, AdminBookingsTable, HousekeepingKanban, OccupancyCalendarMatrix) — maintainability and clean code
+- 2026-10-09 — Fix App Bar z-index to z-[1050] and isolate Leaflet map with relative z-0 isolate — resolve map covering navbar on scroll
+- 2026-10-09 — Remove unstyled .t-tt pseudo-tooltips spilling raw text under navbar icon buttons — fix broken button labels
+- 2026-10-09 — Streamline navbar hierarchy, eliminate duplicate Bookings/Wishlist links, restrict Dashboard to staff only — clean guest experience
+- 2026-10-09 — Integrate room keyword filter directly inside room catalog section — eliminate stranded search bar below Hero
+- 2026-10-09 — Sanitize leaked prompt/guideline texts from map section and footer — professional resort branding
+- 2026-10-09 — Production build verified: 566ms, 0 errors, all backend tests pass — production quality
+
 ## 2026-10-09 — Motion Polish (transitions.dev)
 
 - 2026-10-09 — Add transitions.dev motion library (32 free transitions, 181 lines) — beautiful micro-interactions
